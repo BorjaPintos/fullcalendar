@@ -123,7 +123,7 @@ function undistributeHeight(els) {
 function matchCellWidths(els) {
 	var maxInnerWidth = 0;
 
-	els.find('> span').each(function(i, innerEl) {
+	els.find('> *').each(function(i, innerEl) {
 		var innerWidth = $(innerEl).outerWidth();
 		if (innerWidth > maxInnerWidth) {
 			maxInnerWidth = innerWidth;
@@ -138,29 +138,25 @@ function matchCellWidths(els) {
 }
 
 
-// Turns a container element into a scroller if its contents is taller than the allotted height.
-// Returns true if the element is now a scroller, false otherwise.
-// NOTE: this method is best because it takes weird zooming dimensions into account
-function setPotentialScroller(containerEl, height) {
-	containerEl.height(height).addClass('fc-scroller');
+// Given one element that resides inside another,
+// Subtracts the height of the inner element from the outer element.
+function subtractInnerElHeight(outerEl, innerEl) {
+	var both = outerEl.add(innerEl);
+	var diff;
 
-	// are scrollbars needed?
-	if (containerEl[0].scrollHeight - 1 > containerEl[0].clientHeight) { // !!! -1 because IE is often off-by-one :(
-		return true;
-	}
+	// effin' IE8/9/10/11 sometimes returns 0 for dimensions. this weird hack was the only thing that worked
+	both.css({
+		position: 'relative', // cause a reflow, which will force fresh dimension recalculation
+		left: -1 // ensure reflow in case the el was already relative. negative is less likely to cause new scroll
+	});
+	diff = outerEl.outerHeight() - innerEl.outerHeight(); // grab the dimensions
+	both.css({ position: '', left: '' }); // undo hack
 
-	unsetScroller(containerEl); // undo
-	return false;
+	return diff;
 }
 
 
-// Takes an element that might have been a scroller, and turns it back into a normal element.
-function unsetScroller(containerEl) {
-	containerEl.height('').removeClass('fc-scroller');
-}
-
-
-/* General DOM Utilities
+/* Element Geom Utilities
 ----------------------------------------------------------------------------------------------------------------------*/
 
 FC.getOuterRect = getOuterRect;
@@ -185,26 +181,31 @@ function getScrollParent(el) {
 
 // Queries the outer bounding area of a jQuery element.
 // Returns a rectangle with absolute coordinates: left, right (exclusive), top, bottom (exclusive).
-function getOuterRect(el) {
+// Origin is optional.
+function getOuterRect(el, origin) {
 	var offset = el.offset();
+	var left = offset.left - (origin ? origin.left : 0);
+	var top = offset.top - (origin ? origin.top : 0);
 
 	return {
-		left: offset.left,
-		right: offset.left + el.outerWidth(),
-		top: offset.top,
-		bottom: offset.top + el.outerHeight()
+		left: left,
+		right: left + el.outerWidth(),
+		top: top,
+		bottom: top + el.outerHeight()
 	};
 }
 
 
 // Queries the area within the margin/border/scrollbars of a jQuery element. Does not go within the padding.
 // Returns a rectangle with absolute coordinates: left, right (exclusive), top, bottom (exclusive).
+// Origin is optional.
+// WARNING: given element can't have borders
 // NOTE: should use clientLeft/clientTop, but very unreliable cross-browser.
-function getClientRect(el) {
+function getClientRect(el, origin) {
 	var offset = el.offset();
 	var scrollbarWidths = getScrollbarWidths(el);
-	var left = offset.left + getCssFloat(el, 'border-left-width') + scrollbarWidths.left;
-	var top = offset.top + getCssFloat(el, 'border-top-width') + scrollbarWidths.top;
+	var left = offset.left + getCssFloat(el, 'border-left-width') + scrollbarWidths.left - (origin ? origin.left : 0);
+	var top = offset.top + getCssFloat(el, 'border-top-width') + scrollbarWidths.top - (origin ? origin.top : 0);
 
 	return {
 		left: left,
@@ -217,10 +218,13 @@ function getClientRect(el) {
 
 // Queries the area within the margin/border/padding of a jQuery element. Assumed not to have scrollbars.
 // Returns a rectangle with absolute coordinates: left, right (exclusive), top, bottom (exclusive).
-function getContentRect(el) {
+// Origin is optional.
+function getContentRect(el, origin) {
 	var offset = el.offset(); // just outside of border, margin not included
-	var left = offset.left + getCssFloat(el, 'border-left-width') + getCssFloat(el, 'padding-left');
-	var top = offset.top + getCssFloat(el, 'border-top-width') + getCssFloat(el, 'padding-top');
+	var left = offset.left + getCssFloat(el, 'border-left-width') + getCssFloat(el, 'padding-left') -
+		(origin ? origin.left : 0);
+	var top = offset.top + getCssFloat(el, 'border-top-width') + getCssFloat(el, 'padding-top') -
+		(origin ? origin.top : 0);
 
 	return {
 		left: left,
@@ -232,15 +236,17 @@ function getContentRect(el) {
 
 
 // Returns the computed left/right/top/bottom scrollbar widths for the given jQuery element.
+// WARNING: given element can't have borders (which will cause offsetWidth/offsetHeight to be larger).
 // NOTE: should use clientLeft/clientTop, but very unreliable cross-browser.
 function getScrollbarWidths(el) {
-	var leftRightWidth = el.innerWidth() - el[0].clientWidth; // the paddings cancel out, leaving the scrollbars
-	var widths = {
-		left: 0,
-		right: 0,
-		top: 0,
-		bottom: el.innerHeight() - el[0].clientHeight // the paddings cancel out, leaving the bottom scrollbar
-	};
+	var leftRightWidth = el[0].offsetWidth - el[0].clientWidth;
+	var bottomWidth = el[0].offsetHeight - el[0].clientHeight;
+	var widths;
+
+	leftRightWidth = sanitizeScrollbarWidth(leftRightWidth);
+	bottomWidth = sanitizeScrollbarWidth(bottomWidth);
+
+	widths = { left: 0, right: 0, top: 0, bottom: bottomWidth };
 
 	if (getIsLeftRtlScrollbars() && el.css('direction') == 'rtl') { // is the scrollbar on the left side?
 		widths.left = leftRightWidth;
@@ -250,6 +256,15 @@ function getScrollbarWidths(el) {
 	}
 
 	return widths;
+}
+
+
+// The scrollbar width computations in getScrollbarWidths are sometimes flawed when it comes to
+// retina displays, rounding, and IE11. Massage them into a usable value.
+function sanitizeScrollbarWidth(width) {
+	width = Math.max(0, width); // no negatives
+	width = Math.round(width);
+	return width;
 }
 
 
@@ -290,13 +305,68 @@ function getCssFloat(el, prop) {
 }
 
 
+/* Mouse / Touch Utilities
+----------------------------------------------------------------------------------------------------------------------*/
+
+FC.preventDefault = preventDefault;
+
+
 // Returns a boolean whether this was a left mouse click and no ctrl key (which means right click on Mac)
 function isPrimaryMouseButton(ev) {
 	return ev.which == 1 && !ev.ctrlKey;
 }
 
 
-/* Geometry
+function getEvX(ev) {
+	var touches = ev.originalEvent.touches;
+
+	// on mobile FF, pageX for touch events is present, but incorrect,
+	// so, look at touch coordinates first.
+	if (touches && touches.length) {
+		return touches[0].pageX;
+	}
+
+	return ev.pageX;
+}
+
+
+function getEvY(ev) {
+	var touches = ev.originalEvent.touches;
+
+	// on mobile FF, pageX for touch events is present, but incorrect,
+	// so, look at touch coordinates first.
+	if (touches && touches.length) {
+		return touches[0].pageY;
+	}
+
+	return ev.pageY;
+}
+
+
+function getEvIsTouch(ev) {
+	return /^touch/.test(ev.type);
+}
+
+
+function preventSelection(el) {
+	el.addClass('fc-unselectable')
+		.on('selectstart', preventDefault);
+}
+
+
+function allowSelection(el) {
+	el.removeClass('fc-unselectable')
+		.off('selectstart', preventDefault);
+}
+
+
+// Stops a mouse/touch event from doing it's native browser action
+function preventDefault(ev) {
+	ev.preventDefault();
+}
+
+
+/* General Geometry Utils
 ----------------------------------------------------------------------------------------------------------------------*/
 
 FC.intersectRects = intersectRects;
@@ -432,7 +502,8 @@ function flexibleCompare(a, b) {
 ----------------------------------------------------------------------------------------------------------------------*/
 
 
-// Computes the intersection of the two ranges. Returns undefined if no intersection.
+// Computes the intersection of the two ranges. Will return fresh date clones in a range.
+// Returns undefined if no intersection.
 // Expects all dates to be normalized to the same timezone beforehand.
 // TODO: move to date section?
 function intersectRanges(subjectRange, constraintRange) {
@@ -476,14 +547,14 @@ function intersectRanges(subjectRange, constraintRange) {
 /* Date Utilities
 ----------------------------------------------------------------------------------------------------------------------*/
 
-FC.computeIntervalUnit = computeIntervalUnit;
+FC.computeGreatestUnit = computeGreatestUnit;
 FC.divideRangeByDuration = divideRangeByDuration;
 FC.divideDurationByDuration = divideDurationByDuration;
 FC.multiplyDuration = multiplyDuration;
 FC.durationHasTime = durationHasTime;
 
 var dayIDs = [ 'sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat' ];
-var intervalUnits = [ 'year', 'month', 'week', 'day', 'hour', 'minute', 'second', 'millisecond' ];
+var unitsDesc = [ 'year', 'month', 'week', 'day', 'hour', 'minute', 'second', 'millisecond' ]; // descending
 
 
 // Diffs the two moments into a Duration where full-days are recorded first, then the remaining time.
@@ -516,12 +587,12 @@ function diffByUnit(a, b, unit) {
 // Computes the unit name of the largest whole-unit period of time.
 // For example, 48 hours will be "days" whereas 49 hours will be "hours".
 // Accepts start/end, a range object, or an original duration object.
-function computeIntervalUnit(start, end) {
+function computeGreatestUnit(start, end) {
 	var i, unit;
 	var val;
 
-	for (i = 0; i < intervalUnits.length; i++) {
-		unit = intervalUnits[i];
+	for (i = 0; i < unitsDesc.length; i++) {
+		unit = unitsDesc[i];
 		val = computeRangeAs(unit, start, end);
 
 		if (val >= 1 && isInt(val)) {
@@ -530,6 +601,19 @@ function computeIntervalUnit(start, end) {
 	}
 
 	return unit; // will be "milliseconds" if nothing else matches
+}
+
+
+// like computeGreatestUnit, but has special abilities to interpret the source input for clues
+function computeDurationGreatestUnit(duration, durationInput) {
+	var unit = computeGreatestUnit(duration);
+
+	// prevent days:7 from being interpreted as a week
+	if (unit === 'week' && typeof durationInput === 'object' && durationInput.days) {
+		unit = 'day';
+	}
+
+	return unit;
 }
 
 
@@ -597,6 +681,88 @@ function multiplyDuration(dur, n) {
 		return moment.duration({ months: months * n });
 	}
 	return moment.duration({ days: dur.asDays() * n });
+}
+
+
+function cloneRange(range) {
+	return {
+		start: range.start.clone(),
+		end: range.end.clone()
+	};
+}
+
+
+// Trims the beginning and end of inner range to be completely within outerRange.
+// Returns a new range object.
+function constrainRange(innerRange, outerRange) {
+	innerRange = cloneRange(innerRange);
+
+	if (outerRange.start) {
+		// needs to be inclusively before outerRange's end
+		innerRange.start = constrainDate(innerRange.start, outerRange);
+	}
+
+	if (outerRange.end) {
+		innerRange.end = minMoment(innerRange.end, outerRange.end);
+	}
+
+	return innerRange;
+}
+
+
+// If the given date is not within the given range, move it inside.
+// (If it's past the end, make it one millisecond before the end).
+// Always returns a new moment.
+function constrainDate(date, range) {
+	date = date.clone();
+
+	if (range.start) {
+		date = maxMoment(date, range.start);
+	}
+
+	if (range.end && date >= range.end) {
+		date = range.end.clone().subtract(1);
+	}
+
+	return date;
+}
+
+
+function isDateWithinRange(date, range) {
+	return (!range.start || date >= range.start) &&
+		(!range.end || date < range.end);
+}
+
+
+// TODO: deal with repeat code in intersectRanges
+// constraintRange can have unspecified start/end, an open-ended range.
+function doRangesIntersect(subjectRange, constraintRange) {
+	return (!constraintRange.start || subjectRange.end >= constraintRange.start) &&
+		(!constraintRange.end || subjectRange.start < constraintRange.end);
+}
+
+
+function isRangeWithinRange(innerRange, outerRange) {
+	return (!outerRange.start || innerRange.start >= outerRange.start) &&
+		(!outerRange.end || innerRange.end <= outerRange.end);
+}
+
+
+function isRangesEqual(range0, range1) {
+	return ((range0.start && range1.start && range0.start.isSame(range1.start)) || (!range0.start && !range1.start)) &&
+		((range0.end && range1.end && range0.end.isSame(range1.end)) || (!range0.end && !range1.end));
+}
+
+
+// Returns the moment that's earlier in time. Always a copy.
+function minMoment(mom1, mom2) {
+	return (mom1.isBefore(mom2) ? mom1 : mom2).clone();
+}
+
+
+// Returns the moment that's later in time. Always a copy.
+function maxMoment(mom1, mom2) {
+	return (mom1.isAfter(mom2) ? mom1 : mom2).clone();
 }
 
 
@@ -701,27 +867,12 @@ function createObject(proto) {
 	f.prototype = proto;
 	return new f();
 }
+FC.createObject = createObject;
 
 
 function copyOwnProps(src, dest) {
 	for (var name in src) {
 		if (hasOwnProp(src, name)) {
-			dest[name] = src[name];
-		}
-	}
-}
-
-
-// Copies over certain methods with the same names as Object.prototype methods. Overcomes an IE<=8 bug:
-// https://developer.mozilla.org/en-US/docs/ECMAScript_DontEnum_attribute#JScript_DontEnum_Bug
-function copyNativeMethods(src, dest) {
-	var names = [ 'constructor', 'toString', 'valueOf' ];
-	var i, name;
-
-	for (i = 0; i < names.length; i++) {
-		name = names[i];
-
-		if (src[name] !== Object.prototype[name]) {
 			dest[name] = src[name];
 		}
 	}
@@ -793,6 +944,21 @@ function cssToStr(cssProps) {
 }
 
 
+// Given an object hash of HTML attribute names to values,
+// generates a string that can be injected between < > in HTML
+function attrsToStr(attrs) {
+	var parts = [];
+
+	$.each(attrs, function(name, val) {
+		if (val != null) {
+			parts.push(name + '="' + htmlEscape(val) + '"');
+		}
+	});
+
+	return parts.join(' ');
+}
+
+
 function capitaliseFirstLetter(str) {
 	return str.charAt(0).toUpperCase() + str.slice(1);
 }
@@ -822,22 +988,21 @@ function proxy(obj, methodName) {
 
 // Returns a function, that, as long as it continues to be invoked, will not
 // be triggered. The function will be called after it stops being called for
-// N milliseconds.
+// N milliseconds. If `immediate` is passed, trigger the function on the
+// leading edge, instead of the trailing.
 // https://github.com/jashkenas/underscore/blob/1.6.0/underscore.js#L714
-function debounce(func, wait) {
-	var timeoutId;
-	var args;
-	var context;
-	var timestamp; // of most recent call
+function debounce(func, wait, immediate) {
+	var timeout, args, context, timestamp, result;
+
 	var later = function() {
 		var last = +new Date() - timestamp;
-		if (last < wait && last > 0) {
-			timeoutId = setTimeout(later, wait - last);
+		if (last < wait) {
+			timeout = setTimeout(later, wait - last);
 		}
 		else {
-			timeoutId = null;
-			func.apply(context, args);
-			if (!timeoutId) {
+			timeout = null;
+			if (!immediate) {
+				result = func.apply(context, args);
 				context = args = null;
 			}
 		}
@@ -847,8 +1012,14 @@ function debounce(func, wait) {
 		context = this;
 		args = arguments;
 		timestamp = +new Date();
-		if (!timeoutId) {
-			timeoutId = setTimeout(later, wait);
+		var callNow = immediate && !timeout;
+		if (!timeout) {
+			timeout = setTimeout(later, wait);
 		}
+		if (callNow) {
+			result = func.apply(context, args);
+			context = args = null;
+		}
+		return result;
 	};
 }

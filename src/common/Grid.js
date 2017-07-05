@@ -2,7 +2,10 @@
 /* An abstract class comprised of a "grid" of areas that each represent a specific datetime
 ----------------------------------------------------------------------------------------------------------------------*/
 
-var Grid = FC.Grid = Class.extend({
+var Grid = FC.Grid = Class.extend(ListenerMixin, {
+
+	// self-config, overridable by subclasses
+	hasDayInteractions: true, // can user click/select ranges of time?
 
 	view: null, // a View object
 	isRTL: null, // shortcut to the view's isRTL option
@@ -12,8 +15,6 @@ var Grid = FC.Grid = Class.extend({
 
 	el: null, // the containing element
 	elsByFill: null, // a hash of jQuery element sets used for rendering each fill. Keyed by fill name.
-
-	externalDragStartProxy: null, // binds the Grid's scope to externalDragStart (in DayGrid.events)
 
 	// derived from options
 	eventTimeFormat: null,
@@ -27,13 +28,20 @@ var Grid = FC.Grid = Class.extend({
 	// TODO: port isTimeScale into same system?
 	largeUnit: null,
 
+	dayClickListener: null,
+	daySelectListener: null,
+	segDragListener: null,
+	segResizeListener: null,
+	externalDragListener: null,
+
 
 	constructor: function(view) {
 		this.view = view;
 		this.isRTL = view.opt('isRTL');
-
 		this.elsByFill = {};
-		this.externalDragStartProxy = proxy(this, 'externalDragStart');
+
+		this.dayClickListener = this.buildDayClickListener();
+		this.daySelectListener = this.buildDaySelectListener();
 	},
 
 
@@ -128,6 +136,20 @@ var Grid = FC.Grid = Class.extend({
 	/* Hit Area
 	------------------------------------------------------------------------------------------------------------------*/
 
+	hitsNeededDepth: 0, // necessary because multiple callers might need the same hits
+
+	hitsNeeded: function() {
+		if (!(this.hitsNeededDepth++)) {
+			this.prepareHits();
+		}
+	},
+
+	hitsNotNeeded: function() {
+		if (this.hitsNeededDepth && !(--this.hitsNeededDepth)) {
+			this.releaseHits();
+		}
+	},
+
 
 	// Called before one or more queryHit calls might happen. Should prepare any cached coordinates for queryHit
 	prepareHits: function() {
@@ -144,6 +166,18 @@ var Grid = FC.Grid = Class.extend({
 	// Must have a `grid` property, a reference to this current grid. TODO: avoid this
 	// The returned object will be processed by getHitSpan and getHitEl.
 	queryHit: function(leftOffset, topOffset) {
+	},
+
+
+	// like getHitSpan, but returns null if the resulting span's range is invalid
+	getSafeHitSpan: function(hit) {
+		var hitSpan = this.getHitSpan(hit);
+
+		if (!isRangeWithinRange(hitSpan, this.view.activeRange)) {
+			return null;
+		}
+
+		return hitSpan;
 	},
 
 
@@ -166,20 +200,14 @@ var Grid = FC.Grid = Class.extend({
 	// Sets the container element that the grid should render inside of.
 	// Does other DOM-related initializations.
 	setElement: function(el) {
-		var _this = this;
-
 		this.el = el;
 
-		// attach a handler to the grid's root element.
-		// jQuery will take care of unregistering them when removeElement gets called.
-		el.on('mousedown', function(ev) {
-			if (
-				!$(ev.target).is('.fc-event-container *, .fc-more') && // not an an event element, or "more.." link
-				!$(ev.target).closest('.fc-popover').length // not on a popover (like the "more.." events one)
-			) {
-				_this.dayMousedown(ev);
-			}
-		});
+		if (this.hasDayInteractions) {
+			preventSelection(el);
+
+			this.bindDayHandler('touchstart', this.dayTouchStart);
+			this.bindDayHandler('mousedown', this.dayMousedown);
+		}
 
 		// attach event-element-related handlers. in Grid.events
 		// same garbage collection note as above.
@@ -189,10 +217,31 @@ var Grid = FC.Grid = Class.extend({
 	},
 
 
+	bindDayHandler: function(name, handler) {
+		var _this = this;
+
+		// attach a handler to the grid's root element.
+		// jQuery will take care of unregistering them when removeElement gets called.
+		this.el.on(name, function(ev) {
+			if (
+				!$(ev.target).is(
+					_this.segSelector + ',' + // directly on an event element
+					_this.segSelector + ' *,' + // within an event element
+					'.fc-more,' + // a "more.." link
+					'a[data-goto]' // a clickable nav link
+				)
+			) {
+				return handler.call(_this, ev);
+			}
+		});
+	},
+
+
 	// Removes the grid's container element from the DOM. Undoes any other DOM-related attachments.
 	// DOES NOT remove any content beforehand (doesn't clear events or call unrenderDates), unlike View
 	removeElement: function() {
 		this.unbindGlobalHandlers();
+		this.clearDragListeners();
 
 		this.el.remove();
 
@@ -225,73 +274,182 @@ var Grid = FC.Grid = Class.extend({
 
 	// Binds DOM handlers to elements that reside outside the grid, such as the document
 	bindGlobalHandlers: function() {
-		$(document).on('dragstart sortstart', this.externalDragStartProxy); // jqui
+		this.listenTo($(document), {
+			dragstart: this.externalDragStart, // jqui
+			sortstart: this.externalDragStart // jqui
+		});
 	},
 
 
 	// Unbinds DOM handlers from elements that reside outside the grid
 	unbindGlobalHandlers: function() {
-		$(document).off('dragstart sortstart', this.externalDragStartProxy); // jqui
+		this.stopListeningTo($(document));
 	},
 
 
 	// Process a mousedown on an element that represents a day. For day clicking and selecting.
 	dayMousedown: function(ev) {
+		var view = this.view;
+
+		// HACK
+		// This will still work even though bindDayHandler doesn't use GlobalEmitter.
+		if (GlobalEmitter.get().shouldIgnoreMouse()) {
+			return;
+		}
+
+		this.dayClickListener.startInteraction(ev);
+
+		if (view.opt('selectable')) {
+			this.daySelectListener.startInteraction(ev, {
+				distance: view.opt('selectMinDistance')
+			});
+		}
+	},
+
+
+	dayTouchStart: function(ev) {
+		var view = this.view;
+		var selectLongPressDelay;
+
+		// On iOS (and Android?) when a new selection is initiated overtop another selection,
+		// the touchend never fires because the elements gets removed mid-touch-interaction (my theory).
+		// HACK: simply don't allow this to happen.
+		// ALSO: prevent selection when an *event* is already raised.
+		if (view.isSelected || view.selectedEvent) {
+			return;
+		}
+
+		selectLongPressDelay = view.opt('selectLongPressDelay');
+		if (selectLongPressDelay == null) {
+			selectLongPressDelay = view.opt('longPressDelay'); // fallback
+		}
+
+		this.dayClickListener.startInteraction(ev);
+
+		if (view.opt('selectable')) {
+			this.daySelectListener.startInteraction(ev, {
+				delay: selectLongPressDelay
+			});
+		}
+	},
+
+
+	// Creates a listener that tracks the user's drag across day elements, for day clicking.
+	buildDayClickListener: function() {
 		var _this = this;
 		var view = this.view;
-		var isSelectable = view.opt('selectable');
 		var dayClickHit; // null if invalid dayClick
+
+		var dragListener = new HitDragListener(this, {
+			scroll: view.opt('dragScroll'),
+			interactionStart: function() {
+				dayClickHit = dragListener.origHit;
+			},
+			hitOver: function(hit, isOrig, origHit) {
+				// if user dragged to another cell at any point, it can no longer be a dayClick
+				if (!isOrig) {
+					dayClickHit = null;
+				}
+			},
+			hitOut: function() { // called before mouse moves to a different hit OR moved out of all hits
+				dayClickHit = null;
+			},
+			interactionEnd: function(ev, isCancelled) {
+				var hitSpan;
+
+				if (!isCancelled && dayClickHit) {
+					hitSpan = _this.getSafeHitSpan(dayClickHit);
+
+					if (hitSpan) {
+						view.triggerDayClick(hitSpan, _this.getHitEl(dayClickHit), ev);
+					}
+				}
+			}
+		});
+
+		// because dayClickListener won't be called with any time delay, "dragging" will begin immediately,
+		// which will kill any touchmoving/scrolling. Prevent this.
+		dragListener.shouldCancelTouchScroll = false;
+
+		dragListener.scrollAlwaysKills = true;
+
+		return dragListener;
+	},
+
+
+	// Creates a listener that tracks the user's drag across day elements, for day selecting.
+	buildDaySelectListener: function() {
+		var _this = this;
+		var view = this.view;
 		var selectionSpan; // null if invalid selection
 
-		// this listener tracks a mousedown on a day element, and a subsequent drag.
-		// if the drag ends on the same day, it is a 'dayClick'.
-		// if 'selectable' is enabled, this listener also detects selections.
 		var dragListener = new HitDragListener(this, {
-			//distance: 5, // needs more work if we want dayClick to fire correctly
 			scroll: view.opt('dragScroll'),
+			interactionStart: function() {
+				selectionSpan = null;
+			},
 			dragStart: function() {
 				view.unselect(); // since we could be rendering a new selection, we want to clear any old one
 			},
 			hitOver: function(hit, isOrig, origHit) {
+				var origHitSpan;
+				var hitSpan;
+
 				if (origHit) { // click needs to have started on a hit
-					dayClickHit = isOrig ? hit : null; // single-hit selection is a day click
-					if (isSelectable) {
-						selectionSpan = _this.computeSelection(
-							_this.getHitSpan(origHit),
-							_this.getHitSpan(hit)
-						);
-						if (selectionSpan) {
-							_this.renderSelection(selectionSpan);
-						}
-						else if (selectionSpan === false) {
-							disableCursor();
-						}
+
+					origHitSpan = _this.getSafeHitSpan(origHit);
+					hitSpan = _this.getSafeHitSpan(hit);
+
+					if (origHitSpan && hitSpan) {
+						selectionSpan = _this.computeSelection(origHitSpan, hitSpan);
+					}
+					else {
+						selectionSpan = null;
+					}
+
+					if (selectionSpan) {
+						_this.renderSelection(selectionSpan);
+					}
+					else if (selectionSpan === false) {
+						disableCursor();
 					}
 				}
 			},
-			hitOut: function() {
-				dayClickHit = null;
+			hitOut: function() { // called before mouse moves to a different hit OR moved out of all hits
 				selectionSpan = null;
 				_this.unrenderSelection();
+			},
+			hitDone: function() { // called after a hitOut OR before a dragEnd
 				enableCursor();
 			},
-			listenStop: function(ev) {
-				if (dayClickHit) {
-					view.triggerDayClick(
-						_this.getHitSpan(dayClickHit),
-						_this.getHitEl(dayClickHit),
-						ev
-					);
-				}
-				if (selectionSpan) {
+			interactionEnd: function(ev, isCancelled) {
+				if (!isCancelled && selectionSpan) {
 					// the selection will already have been rendered. just report it
 					view.reportSelection(selectionSpan, ev);
 				}
-				enableCursor();
 			}
 		});
 
-		dragListener.mousedown(ev); // start listening, which will eventually initiate a dragStart
+		return dragListener;
+	},
+
+
+	// Kills all in-progress dragging.
+	// Useful for when public API methods that result in re-rendering are invoked during a drag.
+	// Also useful for when touch devices misbehave and don't fire their touchend.
+	clearDragListeners: function() {
+		this.dayClickListener.endInteraction();
+		this.daySelectListener.endInteraction();
+
+		if (this.segDragListener) {
+			this.segDragListener.endInteraction(); // will clear this.segDragListener
+		}
+		if (this.segResizeListener) {
+			this.segResizeListener.endInteraction(); // will clear this.segResizeListener
+		}
+		if (this.externalDragListener) {
+			this.externalDragListener.endInteraction(); // will clear this.externalDragListener
+		}
 	},
 
 
@@ -301,10 +459,11 @@ var Grid = FC.Grid = Class.extend({
 
 
 	// Renders a mock event at the given event location, which contains zoned start/end properties.
+	// Returns all mock event elements.
 	renderEventLocationHelper: function(eventLocation, sourceSeg) {
 		var fakeEvent = this.fabricateHelperEvent(eventLocation, sourceSeg);
 
-		this.renderHelper(fakeEvent, sourceSeg); // do the actual rendering
+		return this.renderHelper(fakeEvent, sourceSeg); // do the actual rendering
 	},
 
 
@@ -332,6 +491,7 @@ var Grid = FC.Grid = Class.extend({
 
 
 	// Renders a mock event. Given zoned event date properties.
+	// Must return all mock event elements.
 	renderHelper: function(eventLocation, sourceSeg) {
 		// subclasses must implement
 	},
@@ -509,7 +669,7 @@ var Grid = FC.Grid = Class.extend({
 	fillSegTag: 'div', // subclasses can override
 
 
-	// Builds the HTML needed for one fill segment. Generic enought o work with different types.
+	// Builds the HTML needed for one fill segment. Generic enough to work with different types.
 	fillSegHtml: function(type, seg) {
 
 		// custom hooks per-type
@@ -532,29 +692,39 @@ var Grid = FC.Grid = Class.extend({
 
 
 	// Computes HTML classNames for a single-day element
-	getDayClasses: function(date) {
+	getDayClasses: function(date, noThemeHighlight) {
 		var view = this.view;
-		var today = view.calendar.getNow();
-		var classes = [ 'fc-' + dayIDs[date.day()] ];
+		var classes = [];
+		var today;
 
-		if (
-			view.intervalDuration.as('months') == 1 &&
-			date.month() != view.intervalStart.month()
-		) {
-			classes.push('fc-other-month');
-		}
-
-		if (date.isSame(today, 'day')) {
-			classes.push(
-				'fc-today',
-				view.highlightStateClass
-			);
-		}
-		else if (date < today) {
-			classes.push('fc-past');
+		if (!isDateWithinRange(date, view.activeRange)) {
+			classes.push('fc-disabled-day'); // TODO: jQuery UI theme?
 		}
 		else {
-			classes.push('fc-future');
+			classes.push('fc-' + dayIDs[date.day()]);
+
+			if (
+				view.currentRangeAs('months') == 1 && // TODO: somehow get into MonthView
+				date.month() != view.currentRange.start.month()
+			) {
+				classes.push('fc-other-month');
+			}
+
+			today = view.calendar.getNow();
+
+			if (date.isSame(today, 'day')) {
+				classes.push('fc-today');
+
+				if (noThemeHighlight !== true) {
+					classes.push(view.highlightStateClass);
+				}
+			}
+			else if (date < today) {
+				classes.push('fc-past');
+			}
+			else {
+				classes.push('fc-future');
+			}
 		}
 
 		return classes;

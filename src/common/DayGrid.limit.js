@@ -204,7 +204,7 @@ DayGrid.mixin({
 
 				if (typeof clickOption === 'function') {
 					// the returned value can be an atomic option
-					clickOption = view.trigger('eventLimitClick', null, {
+					clickOption = view.publiclyTrigger('eventLimitClick', null, {
 						date: date,
 						dayEl: dayEl,
 						moreEl: moreEl,
@@ -241,12 +241,20 @@ DayGrid.mixin({
 		options = {
 			className: 'fc-more-popover',
 			content: this.renderSegPopoverContent(row, col, segs),
-			parentEl: this.el,
+			parentEl: this.view.el, // attach to root of view. guarantees outside of scrollbars.
 			top: topEl.offset().top,
 			autoHide: true, // when the user clicks elsewhere, hide the popover
 			viewportConstrain: view.opt('popoverViewportConstrain'),
 			hide: function() {
 				// kill everything when the popover is hidden
+				// notify events to be removed
+				if (_this.popoverSegs) {
+					var seg;
+					for (var i = 0; i < _this.popoverSegs.length; ++i) {
+						seg = _this.popoverSegs[i];
+						view.publiclyTrigger('eventDestroy', seg.event, seg.event, seg.el);
+					}
+				}
 				_this.segPopover.removeElement();
 				_this.segPopover = null;
 				_this.popoverSegs = null;
@@ -264,6 +272,10 @@ DayGrid.mixin({
 
 		this.segPopover = new Popover(options);
 		this.segPopover.show();
+
+		// the popover doesn't live within the grid's container element, and thus won't get the event
+		// delegated-handlers for free. attach event-related handlers to the popover.
+		this.bindSegHandlersToEl(this.segPopover.el);
 	},
 
 
@@ -297,9 +309,9 @@ DayGrid.mixin({
 
 			// because segments in the popover are not part of a grid coordinate system, provide a hint to any
 			// grids that want to do drag-n-drop about which cell it came from
-			this.prepareHits();
+			this.hitsNeeded();
 			segs[i].hit = this.getCellHit(row, col);
-			this.releaseHits();
+			this.hitsNotNeeded();
 
 			segContainer.append(segs[i].el);
 		}

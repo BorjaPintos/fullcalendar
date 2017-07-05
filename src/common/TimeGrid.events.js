@@ -82,6 +82,7 @@ TimeGrid.mixin({
 
 
 	renderHelperSegs: function(segs, sourceSeg) {
+		var helperEls = [];
 		var i, seg;
 		var sourceEl;
 
@@ -99,9 +100,12 @@ TimeGrid.mixin({
 					'margin-right': sourceEl.css('margin-right')
 				});
 			}
+			helperEls.push(seg.el[0]);
 		}
 
 		this.helperSegs = segs;
+
+		return $(helperEls); // must return rendered helpers
 	},
 
 
@@ -327,11 +331,14 @@ TimeGrid.mixin({
 	// For each segment in an array, computes and assigns its top and bottom properties
 	computeSegVerticals: function(segs) {
 		var i, seg;
+		var dayDate;
 
 		for (i = 0; i < segs.length; i++) {
 			seg = segs[i];
-			seg.top = this.computeDateTop(seg.start, seg.start);
-			seg.bottom = this.computeDateTop(seg.end, seg.start);
+			dayDate = this.dayDates[seg.dayIndex];
+
+			seg.top = this.computeDateTop(seg.start, dayDate);
+			seg.bottom = this.computeDateTop(seg.end, dayDate);
 		}
 	},
 

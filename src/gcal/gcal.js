@@ -1,7 +1,7 @@
 /*!
- * <%= meta.title %> v<%= meta.version %> Google Calendar Plugin
- * Docs & License: <%= meta.homepage %>
- * (c) <%= meta.copyright %>
+ * <%= title %> v<%= version %> Google Calendar Plugin
+ * Docs & License: <%= homepage %>
+ * (c) <%= copyright %>
  */
  
 (function(factory) {
@@ -73,7 +73,7 @@ FC.sourceFetchers.push(function(sourceOptions, start, end, timezone) {
 
 function transformOptions(sourceOptions, start, end, timezone, calendar) {
 	var url = API_BASE + '/' + encodeURIComponent(sourceOptions.googleCalendarId) + '/events?callback=?'; // jsonp
-	var apiKey = sourceOptions.googleCalendarApiKey || calendar.options.googleCalendarApiKey;
+	var apiKey = sourceOptions.googleCalendarApiKey || calendar.opt('googleCalendarApiKey');
 	var success = sourceOptions.success;
 	var data;
 	var timezoneArg; // populated when a specific timezone. escaped to Google's liking
@@ -83,7 +83,7 @@ function transformOptions(sourceOptions, start, end, timezone, calendar) {
 
 		// call error handlers
 		(sourceOptions.googleCalendarError || $.noop).apply(calendar, errorObjs);
-		(calendar.options.googleCalendarError || $.noop).apply(calendar, errorObjs);
+		(calendar.opt('googleCalendarError') || $.noop).apply(calendar, errorObjs);
 
 		// print error to debug console
 		FC.warn.apply(null, [ message ].concat(apiErrorObjs || []));
@@ -136,10 +136,10 @@ function transformOptions(sourceOptions, start, end, timezone, calendar) {
 			}
 			else if (data.items) {
 				$.each(data.items, function(i, entry) {
-					var url = entry.htmlLink;
+					var url = entry.htmlLink || null;
 
 					// make the URLs for each event show times in the correct timezone
-					if (timezoneArg) {
+					if (timezoneArg && url !== null) {
 						url = injectQsComponent(url, 'ctz=' + timezoneArg);
 					}
 

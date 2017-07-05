@@ -32,7 +32,7 @@ var DayGrid = FC.DayGrid = Grid.extend(DayTableMixin, {
 		this.el.html(html);
 
 		this.rowEls = this.el.find('.fc-row');
-		this.cellEls = this.el.find('.fc-day');
+		this.cellEls = this.el.find('.fc-day, .fc-disabled-day');
 
 		this.rowCoordCache = new CoordCache({
 			els: this.rowEls,
@@ -46,7 +46,7 @@ var DayGrid = FC.DayGrid = Grid.extend(DayTableMixin, {
 		// trigger dayRender with each cell's element
 		for (row = 0; row < rowCnt; row++) {
 			for (col = 0; col < colCnt; col++) {
-				view.trigger(
+				view.publiclyTrigger(
 					'dayRender',
 					null,
 					this.getCellDate(row, col),
@@ -63,10 +63,13 @@ var DayGrid = FC.DayGrid = Grid.extend(DayTableMixin, {
 
 
 	renderBusinessHours: function() {
-		var events = this.view.calendar.getBusinessHoursEvents(true); // wholeDay=true
-		var segs = this.eventsToSegs(events);
-
+		var segs = this.buildBusinessHourSegs(true); // wholeDay=true
 		this.renderFill('businessHours', segs, 'bgevent');
+	},
+
+
+	unrenderBusinessHours: function() {
+		this.unrenderFill('businessHours');
 	},
 
 
@@ -136,19 +139,61 @@ var DayGrid = FC.DayGrid = Grid.extend(DayTableMixin, {
 	// Generates the HTML for the <td>s of the "number" row in the DayGrid's content skeleton.
 	// The number row will only exist if either day numbers or week numbers are turned on.
 	renderNumberCellHtml: function(date) {
+		var view = this.view;
+		var html = '';
+		var isDateValid = isDateWithinRange(date, view.activeRange); // TODO: called too frequently. cache somehow.
+		var isDayNumberVisible = view.dayNumbersVisible && isDateValid;
 		var classes;
+		var weekCalcFirstDoW;
 
-		if (!this.view.dayNumbersVisible) { // if there are week numbers but not day numbers
+		if (!isDayNumberVisible && !view.cellWeekNumbersVisible) {
+			// no numbers in day cell (week number must be along the side)
 			return '<td/>'; //  will create an empty space above events :(
 		}
 
 		classes = this.getDayClasses(date);
-		classes.unshift('fc-day-number');
+		classes.unshift('fc-day-top');
 
-		return '' +
-			'<td class="' + classes.join(' ') + '" data-date="' + date.format() + '">' +
-				date.date() +
-			'</td>';
+		if (view.cellWeekNumbersVisible) {
+			// To determine the day of week number change under ISO, we cannot
+			// rely on moment.js methods such as firstDayOfWeek() or weekday(),
+			// because they rely on the locale's dow (possibly overridden by
+			// our firstDay option), which may not be Monday. We cannot change
+			// dow, because that would affect the calendar start day as well.
+			if (date._locale._fullCalendar_weekCalc === 'ISO') {
+				weekCalcFirstDoW = 1;  // Monday by ISO 8601 definition
+			}
+			else {
+				weekCalcFirstDoW = date._locale.firstDayOfWeek();
+			}
+		}
+
+		html += '<td class="' + classes.join(' ') + '"' +
+			(isDateValid ?
+				' data-date="' + date.format() + '"' :
+				''
+				) +
+			'>';
+
+		if (view.cellWeekNumbersVisible && (date.day() == weekCalcFirstDoW)) {
+			html += view.buildGotoAnchorHtml(
+				{ date: date, type: 'week' },
+				{ 'class': 'fc-week-number' },
+				date.format('w') // inner HTML
+			);
+		}
+
+		if (isDayNumberVisible) {
+			html += view.buildGotoAnchorHtml(
+				date,
+				{ 'class': 'fc-day-number' },
+				date.date() // inner HTML
+			);
+		}
+
+		html += '</td>';
+
+		return html;
 	},
 
 
@@ -216,11 +261,13 @@ var DayGrid = FC.DayGrid = Grid.extend(DayTableMixin, {
 
 
 	queryHit: function(leftOffset, topOffset) {
-		var col = this.colCoordCache.getHorizontalIndex(leftOffset);
-		var row = this.rowCoordCache.getVerticalIndex(topOffset);
+		if (this.colCoordCache.isLeftInBounds(leftOffset) && this.rowCoordCache.isTopInBounds(topOffset)) {
+			var col = this.colCoordCache.getHorizontalIndex(leftOffset);
+			var row = this.rowCoordCache.getVerticalIndex(topOffset);
 
-		if (row != null && col != null) {
-			return this.getCellHit(row, col);
+			if (row != null && col != null) {
+				return this.getCellHit(row, col);
+			}
 		}
 	},
 
@@ -266,17 +313,17 @@ var DayGrid = FC.DayGrid = Grid.extend(DayTableMixin, {
 	// Renders a visual indication of an event or external element being dragged.
 	// `eventLocation` has zoned start and end (optional)
 	renderDrag: function(eventLocation, seg) {
+		var eventSpans = this.eventToSpans(eventLocation);
+		var i;
 
 		// always render a highlight underneath
-		this.renderHighlight(this.eventToSpan(eventLocation));
+		for (i = 0; i < eventSpans.length; i++) {
+			this.renderHighlight(eventSpans[i]);
+		}
 
 		// if a segment from the same calendar but another component is being dragged, render a helper event
-		if (seg && !seg.el.closest(this.el).length) {
-
-			this.renderEventLocationHelper(eventLocation, seg);
-			this.applyDragOpacity(this.helperEls);
-
-			return true; // a helper has been rendered
+		if (seg && seg.component !== this) {
+			return this.renderEventLocationHelper(eventLocation, seg); // returns mock event elements
 		}
 	},
 
@@ -294,8 +341,14 @@ var DayGrid = FC.DayGrid = Grid.extend(DayTableMixin, {
 
 	// Renders a visual indication of an event being resized
 	renderEventResize: function(eventLocation, seg) {
-		this.renderHighlight(this.eventToSpan(eventLocation));
-		this.renderEventLocationHelper(eventLocation, seg);
+		var eventSpans = this.eventToSpans(eventLocation);
+		var i;
+
+		for (i = 0; i < eventSpans.length; i++) {
+			this.renderHighlight(eventSpans[i]);
+		}
+
+		return this.renderEventLocationHelper(eventLocation, seg); // returns mock event elements
 	},
 
 
@@ -341,7 +394,9 @@ var DayGrid = FC.DayGrid = Grid.extend(DayTableMixin, {
 			helperNodes.push(skeletonEl[0]);
 		});
 
-		this.helperEls = $(helperNodes); // array -> jQuery set
+		return ( // must return the elements rendered
+			this.helperEls = $(helperNodes) // array -> jQuery set
+		);
 	},
 
 

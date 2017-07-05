@@ -4,25 +4,26 @@
 
 var MonthView = FC.MonthView = BasicView.extend({
 
-	// Produces information about what range to display
-	computeRange: function(date) {
-		var range = BasicView.prototype.computeRange.call(this, date); // get value from super-method
+
+	// Computes the date range that will be rendered.
+	buildRenderRange: function() {
+		var renderRange = BasicView.prototype.buildRenderRange.apply(this, arguments);
 		var rowCnt;
 
 		// ensure 6 weeks
 		if (this.isFixedWeeks()) {
-			rowCnt = Math.ceil(range.end.diff(range.start, 'weeks', true)); // could be partial weeks due to hiddenDays
-			range.end.add(6 - rowCnt, 'weeks');
+			rowCnt = Math.ceil( // could be partial weeks due to hiddenDays
+				renderRange.end.diff(renderRange.start, 'weeks', true) // dontRound=true
+			);
+			renderRange.end.add(6 - rowCnt, 'weeks');
 		}
 
-		return range;
+		return renderRange;
 	},
 
 
 	// Overrides the default BasicView behavior to have special multi-week auto-height logic
 	setGridHeight: function(height, isAuto) {
-
-		isAuto = isAuto || this.opt('weekMode') === 'variable'; // LEGACY: weekMode is deprecated
 
 		// if auto, make the height of each row the height that it would be if there were 6 weeks
 		if (isAuto) {
@@ -34,11 +35,6 @@ var MonthView = FC.MonthView = BasicView.extend({
 
 
 	isFixedWeeks: function() {
-		var weekMode = this.opt('weekMode'); // LEGACY: weekMode is deprecated
-		if (weekMode) {
-			return weekMode === 'fixed'; // if any other type of weekMode, assume NOT fixed
-		}
-
 		return this.opt('fixedWeekCount');
 	}
 
