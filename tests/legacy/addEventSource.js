@@ -72,6 +72,7 @@ describe('addEventSource', function() {
 
 	function go(addFunc, extraTestFunc, doneFunc) {
 		var callCnt = 0;
+
 		options.eventAfterAllRender = function() {
 			callCnt++;
 			if (callCnt == 2) { // once for initial render. second time for addEventSource
@@ -86,14 +87,19 @@ describe('addEventSource', function() {
 				$('#cal').fullCalendar('next');
 				$('#cal').fullCalendar('prev');
 
-				checkAllEvents();
-				if (extraTestFunc) {
-					extraTestFunc();
-				}
+				// otherwise, prev/next would be cancelled out by doneFunc's calendar destroy
+				setTimeout(function() {
 
-				doneFunc();
+					checkAllEvents();
+					if (extraTestFunc) {
+						extraTestFunc();
+					}
+
+					doneFunc();
+				}, 0)
 			}
 		};
+
 		$('#cal').fullCalendar(options);
 		addFunc();
 	}

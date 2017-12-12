@@ -12,7 +12,7 @@ describe('events as a json feed', function() {
 		};
 
 		$.mockjax({
-			url: '*',
+			url: '/my-feed.php',
 			contentType: 'text/json',
 			responseText: [
 				{
@@ -29,7 +29,7 @@ describe('events as a json feed', function() {
 	});
 
 	it('requests correctly when no timezone', function() {
-		options.events = 'my-feed.php';
+		options.events = '/my-feed.php';
 		$('#cal').fullCalendar(options);
 		var request = $.mockjax.mockedAjaxCalls()[0];
 		expect(request.data.start).toEqual('2014-04-27');
@@ -38,7 +38,7 @@ describe('events as a json feed', function() {
 	});
 
 	it('requests correctly when local timezone', function() {
-		options.events = 'my-feed.php';
+		options.events = '/my-feed.php';
 		options.timezone = 'local';
 		$('#cal').fullCalendar(options);
 		var request = $.mockjax.mockedAjaxCalls()[0];
@@ -48,7 +48,7 @@ describe('events as a json feed', function() {
 	});
 
 	it('requests correctly when UTC timezone', function() {
-		options.events = 'my-feed.php';
+		options.events = '/my-feed.php';
 		options.timezone = 'UTC';
 		$('#cal').fullCalendar(options);
 		var request = $.mockjax.mockedAjaxCalls()[0];
@@ -58,7 +58,7 @@ describe('events as a json feed', function() {
 	});
 
 	it('requests correctly when custom timezone', function() {
-		options.events = 'my-feed.php';
+		options.events = '/my-feed.php';
 		options.timezone = 'America/Chicago';
 		$('#cal').fullCalendar(options);
 		var request = $.mockjax.mockedAjaxCalls()[0];
@@ -69,7 +69,7 @@ describe('events as a json feed', function() {
 
 	it('requests correctly with event source extended form', function(done) {
 		var eventSource = {
-			url: 'my-feed.php',
+			url: '/my-feed.php',
 			className: 'customeventclass'
 		};
 		options.eventSources = [ eventSource ];
@@ -87,7 +87,7 @@ describe('events as a json feed', function() {
 
 	it('accepts jQuery.ajax params', function(done) {
 		var eventSource = {
-			url: 'my-feed.php',
+			url: '/my-feed.php',
 			data: {
 				customParam: 'yes'
 			},
@@ -103,7 +103,7 @@ describe('events as a json feed', function() {
 
 	it('accepts a dynamic data function', function(done) {
 		var eventSource = {
-			url: 'my-feed.php',
+			url: '/my-feed.php',
 			data: function() {
 				return {
 					customParam: 'heckyeah'
@@ -117,6 +117,33 @@ describe('events as a json feed', function() {
 			done();
 		};
 		$('#cal').fullCalendar(options);
+	});
+
+	it('calls loading callback', function(done) {
+		var loadingCallArgs = [];
+
+		initCalendar({
+			events: { url: '/my-feed.php' },
+			loading: function(bool) {
+				loadingCallArgs.push(bool);
+			},
+			eventAfterAllRender: function() {
+				expect(loadingCallArgs).toEqual([ true, false ]);
+				done();
+			}
+		});
+	});
+
+	it('has and Event Source object with certain props', function() {
+		var url = '/my-feed.php';
+		var source;
+
+		initCalendar({
+			events: { url: url }
+		});
+
+		source = currentCalendar.getEventSources()[0];
+		expect(source.url).toBe(url);
 	});
 
 });

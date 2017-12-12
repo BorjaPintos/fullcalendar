@@ -1,90 +1,87 @@
 var gulp = require('gulp');
-var jshint = require('gulp-jshint');
-var jscs = require('gulp-jscs');
+var tslint = require('gulp-tslint');
+var tsLintLib = require('tslint');
+var eslint = require('gulp-eslint');
 
-// different types of jshint configs
-var jshintConfig = require('../.jshint.js');
-var jshintBase = jshintConfig.base;
-var jshintBrowser = jshintConfig.browser;
-var jshintBuilt = jshintConfig.built;
-
-// don't let gulp-jshint search for .jshintrc files
-jshintBase.lookup = false;
-jshintBrowser.lookup = false;
-jshintBuilt.lookup = false;
+var tslintCoreProgram = tsLintLib.Linter.createProgram('./tsconfig.json');
+var tslintPluginsProgram = tsLintLib.Linter.createProgram('./plugins/tsconfig.json');
+var eslintConfig = require('../eslint.json');
 
 gulp.task('lint', [
-	'jshint:base',
-	'jshint:browser',
-	'jshint:built',
-	'jscs:strict',
-	'jscs:relaxed'
+	'lint:core',
+	'lint:plugins',
+	'lint:built',
+	'lint:tasks',
+	'lint:legacy',
+	'core-types' // make sure typescript defs compile without errors
 ]);
 
-// for non-browser JS
-gulp.task('jshint:base', function() {
-	return gulp.src([
-			'*.js', // like gulpfile and root configs
-			'tasks/*.js',
-			'tests/automated/*.js',
-			'tests/automated-better/*.js'
-		])
-		.pipe(jshint(jshintBase))
-		.pipe(jshint.reporter('default'))
-		.pipe(jshint.reporter('fail'));
+gulp.task('lint:core', function() {
+	return gulp.src('src/**/*.ts')
+		.pipe(
+			tslint({ // will use tslint.json
+				formatter: 'verbose',
+				program: tslintCoreProgram // for type-checking rules
+			})
+		)
+		.pipe(tslint.report());
 });
 
-// for browser JS, before concat
-gulp.task('jshint:browser', function() {
-	return gulp.src([
-			'src/**/*.js',
-			'!src/intro.js', // exclude
-			'!src/outro.js', // "
-			'locale/*.js',
-		])
-		.pipe(jshint(jshintBrowser))
-		.pipe(jshint.reporter('default'))
-		.pipe(jshint.reporter('fail'));
+gulp.task('lint:plugins', function() {
+	return gulp.src('plugins/**/*.ts')
+		.pipe(
+			tslint({ // will use tslint.json
+				formatter: 'verbose',
+				program: tslintPluginsProgram // for type-checking rules
+			})
+		)
+		.pipe(tslint.report());
 });
 
-// for browser JS, after concat
-gulp.task('jshint:built', [ 'modules', 'locale:all' ], function() {
+gulp.task('lint:built', [ 'webpack' ], function() {
 	return gulp.src([
-			'dist/*.js',
-			'!dist/*.min.js', // exclude
-			'!dist/locale-all.js' // "
-		])
-		.pipe(jshint(jshintBuilt))
-		.pipe(jshint.reporter('default'))
-		.pipe(jshint.reporter('fail'));
+		'dist/*.js',
+		'!dist/*.min.js'
+	])
+		.pipe(
+			eslint({ // only checks that globals are properly accessed
+				parserOptions: { 'ecmaVersion': 3 }, // for IE9
+				envs: [ 'browser', 'commonjs', 'amd' ],
+				rules: { 'no-undef': 2 }
+			})
+		)
+		.pipe(eslint.format())
+		.pipe(eslint.failAfterError());
 });
 
-// files we want to lint to a higher standard
-gulp.task('jscs:strict', function() {
-	return gulp.src([
-			'tests/automated/*.js',
-			'tests/automated-better/*.js'
-		])
-		.pipe(jscs({
-			configPath: '.jscs.strict.js' // needs to be an external config
-		}))
-		.pipe(jscs.reporter())
-		.pipe(jscs.reporter('fail'));
+gulp.task('lint:tasks', function() {
+	return gulp.src('tasks/**/*.js')
+		.pipe(
+			eslint(Object.assign({}, eslintConfig, {
+				// tailor main config for node
+				envs: [ 'node' ]
+			}))
+		)
+		.pipe(eslint.format())
+		.pipe(eslint.failAfterError());
 });
 
-// more relaxed linting. eventually move these to strict
-gulp.task('jscs:relaxed', function() {
+gulp.task('lint:legacy', function() {
 	return gulp.src([
-			'*.js', // like gulpfile and root configs
-			'tasks/*.js',
-			'src/**/*.js',
-			'!src/intro.js', // exclude
-			'!src/outro.js', // "
-			'locale/*.js'
-		])
-		.pipe(jscs({
-			configPath: '.jscs.js' // needs to be an external config
-		}))
-		.pipe(jscs.reporter())
-		.pipe(jscs.reporter('fail'));
+		'src/**/*.js',
+		'!src/tslib-lite.js',
+		'!src/**/intro.js',
+		'!src/**/outro.js',
+		'tests/**/*.js',
+		'!tests/manual/**'
+	])
+		.pipe(
+			eslint({ // lenient config from scratch
+				extends: 'eslint:recommended',
+				envs: [ 'browser' ],
+				rules: { curly: 2 }
+			})
+		)
+		.pipe(eslint.format())
+		.pipe(eslint.failAfterError());
 });

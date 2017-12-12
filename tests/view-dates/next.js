@@ -4,7 +4,7 @@ describe('next', function() {
 		defaultDate: '2017-06-08'
 	});
 
-	describe('when in a week view', function() {
+	describe('when in agendaWeek view', function() {
 		pushOptions({
 			defaultView: 'agendaWeek'
 		});
@@ -27,6 +27,12 @@ describe('next', function() {
 				currentCalendar.next();
 				ViewDateUtils.expectActiveRange('2017-06-18', '2017-06-25');
 			});
+		});
+
+		it('does not duplicate-render skeleton', function() {
+			initCalendar();
+			currentCalendar.next();
+			expect(TimeGridRenderUtils.isStructureValid()).toBe(true);
 		});
 	});
 
@@ -119,6 +125,21 @@ describe('next', function() {
 					expect(called).toBe(false);
 				});
 			});
+		});
+	});
+
+	describe('when in a custom two day view and weekends:false', function() {
+		pushOptions({
+			weekends: false,
+			defaultView: 'agenda',
+			duration: { days: 2 }
+		});
+
+		it('skips over weekends if there would be alignment with weekend', function() {
+			initCalendar({
+				defaultDate: '2017-11-09'
+			});
+			currentCalendar.next();
 		});
 	});
 });

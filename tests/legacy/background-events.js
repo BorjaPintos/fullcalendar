@@ -98,8 +98,10 @@ describe('background events', function() {
 			it('renders "business hours" on whole days', function(done) {
 				options.businessHours = true;
 				options.eventAfterAllRender = function() {
-					expect($('.fc-nonbusiness').length).toBe(12); // there are 6 weeks. 2 weekend days each
-					done();
+					setTimeout(function() { // no trigger when business hours renders. this will have to do.
+						expect($('.fc-nonbusiness').length).toBe(12); // there are 6 weeks. 2 weekend days each
+						done();
+					}, 0)
 				};
 				$('#cal').fullCalendar(options);
 			});
@@ -681,6 +683,21 @@ describe('background events', function() {
 						expect(queryBgEventsInCol(5).length).toBe(1);
 						expect(queryBgEventsInCol(6).length).toBe(1);
 						// TODO: maybe check y coords
+						done();
+					};
+					$('#cal').fullCalendar(options);
+				});
+			});
+
+			describe('when out of view range', function() {
+				it('should still render', function(done) {
+					options.events = [ {
+						start: '2014-01-01T01:00:00',
+						end: '2014-01-01T05:00:00',
+						rendering: 'inverse-background'
+					} ];
+					options.eventAfterAllRender = function() {
+						expect($('.fc-bgevent').length).toBe(7);
 						done();
 					};
 					$('#cal').fullCalendar(options);

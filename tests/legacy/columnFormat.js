@@ -1,5 +1,5 @@
-describe('columnFormat', function() {
 
+describe('columnFormat', function() {
     beforeEach(function() {
         affix('#cal');
     });
