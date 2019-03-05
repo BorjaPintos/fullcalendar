@@ -1,87 +1,69 @@
-var gulp = require('gulp');
-var tslint = require('gulp-tslint');
-var tsLintLib = require('tslint');
-var eslint = require('gulp-eslint');
-
-var tslintCoreProgram = tsLintLib.Linter.createProgram('./tsconfig.json');
-var tslintPluginsProgram = tsLintLib.Linter.createProgram('./plugins/tsconfig.json');
-var eslintConfig = require('../eslint.json');
+const gulp = require('gulp')
+const eslint = require('gulp-eslint')
+const shell = require('gulp-shell')
 
 gulp.task('lint', [
-	'lint:core',
-	'lint:plugins',
-	'lint:built',
-	'lint:tasks',
-	'lint:legacy',
-	'core-types' // make sure typescript defs compile without errors
-]);
+  'lint:ts',
+  'lint:js:built',
+  'lint:js:node',
+  'lint:js:tests'
+])
 
-gulp.task('lint:core', function() {
-	return gulp.src('src/**/*.ts')
-		.pipe(
-			tslint({ // will use tslint.json
-				formatter: 'verbose',
-				program: tslintCoreProgram // for type-checking rules
-			})
-		)
-		.pipe(tslint.report());
-});
+gulp.task('lint:ts', shell.task('tslint --project .'))
 
-gulp.task('lint:plugins', function() {
-	return gulp.src('plugins/**/*.ts')
-		.pipe(
-			tslint({ // will use tslint.json
-				formatter: 'verbose',
-				program: tslintPluginsProgram // for type-checking rules
-			})
-		)
-		.pipe(tslint.report());
-});
+/*
+ONLY checks two things:
+- code is ES5 compliant (for IE11)
+- does not access any globals. this is important because the typescript compiler allows
+  accessing globals that are defined in the project for tests (tests/automated/globals.d.ts)
+*/
+gulp.task('lint:js:built', [ 'build' ], function() {
+  return gulp.src([
+    'dist/**/*.js',
+    '!**/*.min.js'
+  ])
+    .pipe(
+      eslint({
+        parserOptions: { 'ecmaVersion': 5 },
+        envs: [ 'browser', 'commonjs', 'amd' ],
+        rules: { 'no-undef': 2 }
+      })
+    )
+    .pipe(eslint.format())
+    .pipe(eslint.failAfterError())
+})
 
-gulp.task('lint:built', [ 'webpack' ], function() {
-	return gulp.src([
-		'dist/*.js',
-		'!dist/*.min.js'
-	])
-		.pipe(
-			eslint({ // only checks that globals are properly accessed
-				parserOptions: { 'ecmaVersion': 3 }, // for IE9
-				envs: [ 'browser', 'commonjs', 'amd' ],
-				rules: { 'no-undef': 2 }
-			})
-		)
-		.pipe(eslint.format())
-		.pipe(eslint.failAfterError());
-});
+gulp.task('lint:js:node', function() {
+  return gulp.src([
+    '*.js', // config files in root
+    'bin/*.js',
+    'tasks/**/*.js'
+  ])
+    .pipe(
+      eslint({
+        configFile: 'eslint.json',
+        envs: [ 'node' ]
+      })
+    )
+    .pipe(eslint.format())
+    .pipe(eslint.failAfterError())
+})
 
-gulp.task('lint:tasks', function() {
-	return gulp.src('tasks/**/*.js')
-		.pipe(
-			eslint(Object.assign({}, eslintConfig, {
-				// tailor main config for node
-				envs: [ 'node' ]
-			}))
-		)
-		.pipe(eslint.format())
-		.pipe(eslint.failAfterError());
-});
-
-gulp.task('lint:legacy', function() {
-	return gulp.src([
-		'src/**/*.js',
-		'!src/tslib-lite.js',
-		'!src/**/intro.js',
-		'!src/**/outro.js',
-		'tests/**/*.js',
-		'!tests/manual/**'
-	])
-		.pipe(
-			eslint({ // lenient config from scratch
-				extends: 'eslint:recommended',
-				envs: [ 'browser' ],
-				rules: { curly: 2 }
-			})
-		)
-		.pipe(eslint.format())
-		.pipe(eslint.failAfterError());
-});
+/*
+we would want to use tslint with jsRules:true, but doesn't work at all,
+because of tslint-config-standard possibly
+*/
+gulp.task('lint:js:tests', function() {
+  return gulp.src([
+    'tests/automated/**/*.js'
+  ])
+    .pipe(
+      eslint({
+        configFile: 'eslint.json',
+        envs: [ 'browser' ],
+        rules: { 'no-undef': 0 } // ignore referencing globals. tsc already checks this
+      })
+    )
+    .pipe(eslint.format())
+    .pipe(eslint.failAfterError())
+})

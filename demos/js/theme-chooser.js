@@ -1,109 +1,141 @@
 
 function initThemeChooser(settings) {
-	var isInitialized = false;
-	var $currentStylesheet = $();
-	var $loading = $('#loading');
-	var $systemSelect = $('#theme-system-selector select')
-		.on('change', function() {
-			setThemeSystem(this.value);
-		});
+  var isInitialized = false;
+  var currentThemeSystem; // don't set this directly. use setThemeSystem
+  var currentStylesheetEl;
+  var loadingEl = document.getElementById('loading');
+  var systemSelectEl = document.querySelector('#theme-system-selector select');
+  var themeSelectWrapEls = Array.prototype.slice.call( // convert to real array
+    document.querySelectorAll('.selector[data-theme-system]')
+  );
 
-	setThemeSystem($systemSelect.val());
+  systemSelectEl.addEventListener('change', function() {
+    setThemeSystem(this.value);
+  });
 
+  setThemeSystem(systemSelectEl.value);
 
-	function setThemeSystem(themeSystem) {
-		var $allSelectWraps = $('.selector[data-theme-system]').hide();
-		var $selectWrap = $allSelectWraps.filter('[data-theme-system="' + themeSystem +'"]').show();
-		var $select = $selectWrap.find('select')
-			.off('change') // avoid duplicate handlers :(
-			.on('change', function() {
-				setTheme(themeSystem, this.value);
-			});
+  themeSelectWrapEls.forEach(function(themeSelectWrapEl) {
+    var themeSelectEl = themeSelectWrapEl.querySelector('select');
 
-		setTheme(themeSystem, $select.val());
-	}
-
-
-	function setTheme(themeSystem, themeName) {
-		var stylesheetUrl = generateStylesheetUrl(themeSystem, themeName);
-		var $stylesheet;
-
-		function done() {
-			if (!isInitialized) {
-				isInitialized = true;
-				settings.init(themeSystem);
-			}
-			else {
-				settings.change(themeSystem);
-			}
-
-			showCredits(themeSystem, themeName);
-		}
-
-		if (stylesheetUrl) {
-			$stylesheet = $('<link rel="stylesheet" type="text/css" href="' + stylesheetUrl + '"/>').appendTo('head');
-			$loading.show();
-
-			whenStylesheetLoaded($stylesheet[0], function() {
-				$currentStylesheet.remove();
-				$currentStylesheet = $stylesheet;
-				$loading.hide();
-				done();
-			});
-		} else {
-			$currentStylesheet.remove();
-			$currentStylesheet = $();
-			done();
-		}
-	}
+    themeSelectWrapEl.addEventListener('change', function() {
+      setTheme(
+        currentThemeSystem,
+        themeSelectEl.options[themeSelectEl.selectedIndex].value
+      );
+    });
+  });
 
 
-	function generateStylesheetUrl(themeSystem, themeName) {
-		if (themeSystem === 'jquery-ui') {
-			return 'https://code.jquery.com/ui/1.12.1/themes/' + themeName + '/jquery-ui.css';
-		}
-		else if (themeSystem === 'bootstrap3') {
-			if (themeName) {
-				return 'https://bootswatch.com/3/' + themeName + '/bootstrap.min.css';
-			}
-			else { // the default bootstrap theme
-				return 'https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css';
-			}
-		}
-	}
+  function setThemeSystem(themeSystem) {
+    var selectedTheme;
+
+    currentThemeSystem = themeSystem;
+
+    themeSelectWrapEls.forEach(function(themeSelectWrapEl) {
+      var themeSelectEl = themeSelectWrapEl.querySelector('select');
+
+      if (themeSelectWrapEl.getAttribute('data-theme-system') === themeSystem) {
+        selectedTheme = themeSelectEl.options[themeSelectEl.selectedIndex].value;
+        themeSelectWrapEl.style.display = 'inline-block';
+      } else {
+        themeSelectWrapEl.style.display = 'none';
+      }
+    });
+
+    setTheme(themeSystem, selectedTheme);
+  }
 
 
-	function showCredits(themeSystem, themeName) {
-		var creditId;
+  function setTheme(themeSystem, themeName) {
+    var stylesheetUrl = generateStylesheetUrl(themeSystem, themeName);
+    var stylesheetEl;
 
-		if (themeSystem === 'jquery-ui') {
-			creditId = 'jquery-ui';
-		}
-		else if (themeSystem === 'bootstrap3') {
-			if (themeName) {
-				creditId = 'bootstrap-custom';
-			}
-			else {
-				creditId = 'bootstrap-standard';
-			}
-		}
+    function done() {
+      if (!isInitialized) {
+        isInitialized = true;
+        settings.init(themeSystem);
+      }
+      else {
+        settings.change(themeSystem);
+      }
 
-		$('.credits').hide()
-			.filter('[data-credit-id="' + creditId + '"]').show();
-	}
+      showCredits(themeSystem, themeName);
+    }
+
+    if (stylesheetUrl) {
+      stylesheetEl = document.createElement('link');
+      stylesheetEl.setAttribute('rel', 'stylesheet');
+      stylesheetEl.setAttribute('href', stylesheetUrl);
+      document.querySelector('head').appendChild(stylesheetEl);
+
+      loadingEl.style.display = 'inline';
+
+      whenStylesheetLoaded(stylesheetEl, function() {
+        if (currentStylesheetEl) {
+          currentStylesheetEl.parentNode.removeChild(currentStylesheetEl);
+        }
+        currentStylesheetEl = stylesheetEl;
+        loadingEl.style.display = 'none';
+        done();
+      });
+    } else {
+      if (currentStylesheetEl) {
+        currentStylesheetEl.parentNode.removeChild(currentStylesheetEl);
+        currentStylesheetEl = null
+      }
+      done();
+    }
+  }
 
 
-	function whenStylesheetLoaded(linkNode, callback) {
-		var isReady = false;
+  function generateStylesheetUrl(themeSystem, themeName) {
+    if (themeSystem === 'bootstrap') {
+      if (themeName) {
+        return 'https://bootswatch.com/4/' + themeName + '/bootstrap.min.css';
+      }
+      else { // the default bootstrap theme
+        return 'https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css';
+      }
+    }
+  }
 
-		function ready() {
-			if (!isReady) { // avoid double-call
-				isReady = true;
-				callback();
-			}
-		}
 
-		linkNode.onload = ready; // does not work cross-browser
-		setTimeout(ready, 2000); // max wait. also handles browsers that don't support onload
-	}
+  function showCredits(themeSystem, themeName) {
+    var creditId;
+
+    if (themeSystem.match('bootstrap')) {
+      if (themeName) {
+        creditId = 'bootstrap-custom';
+      }
+      else {
+        creditId = 'bootstrap-standard';
+      }
+    }
+
+    Array.prototype.slice.call( // convert to real array
+      document.querySelectorAll('.credits')
+    ).forEach(function(creditEl) {
+      if (creditEl.getAttribute('data-credit-id') === creditId) {
+        creditEl.style.display = 'block';
+      } else {
+        creditEl.style.display = 'none';
+      }
+    })
+  }
+
+
+  function whenStylesheetLoaded(linkNode, callback) {
+    var isReady = false;
+
+    function ready() {
+      if (!isReady) { // avoid double-call
+        isReady = true;
+        callback();
+      }
+    }
+
+    linkNode.onload = ready; // does not work cross-browser
+    setTimeout(ready, 2000); // max wait. also handles browsers that don't support onload
+  }
 }

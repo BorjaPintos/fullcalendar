@@ -1,4 +1,166 @@
 
+v4.0.0-beta.3/4 (2019-02-06)
+----------------------------
+NPM problems. Had to push another release. No code changes.
+
+
+v4.0.0-beta.2 (2019-02-06)
+--------------------------
+
+BIG changes since last alpha release:
+(see https://fullcalendar.io/docs/v4/release-notes for more info)
+- all functionality is broken up into plugins
+- changed the names of many views (ex: agendaWeek -> timeGridWeek)
+- changed the names of the npm packages (ex: @fullcalendar/core)
+- technique for initializing a calendar (and using plugins) has changed
+- SuperAgent is no longer needed
+- Bootstrap 3 theme support dropped
+- jQuery UI theme support dropped
+- Bower support dropped
+- Composer support *temporarily* dropped
+- a new npm-run based dev workflow
+- bundled via Rollup (instead of Webpack)
+
+Smaller changes since last alpha release:
+- no need to specify `timeZoneImpl` setting. simply use luxon or moment-timezone plugin instead
+- `agendaEventMinHeight` renamed to `timeGridEventMinHeight`
+- for registering a custom view use `createPlugin` instead of `defineView`
+- `groupByDatesAndResources` and `groupByResources` removed. Use `datesAboveResources` instead
+- removed the deprecated `theme` settings. use `themeSystem` instead
+- for Boostrap 4 theme support, specify `themeSystem: 'boostrap'` instead of (`'bootstrap4'`)
+
+Really obscure changes (TODO: move these to final changelog):
+- `MAX_TIMELINE_SLOTS` moved to `(packageRoot).config.MAX_TIMELINE_SLOTS`
+- `touchMouseIgnoreWait` moved to `(packageRoot).config.touchMouseIgnoreWait`
+- `dataAttrPrefix` moved to `(packageRoot).config.dataAttrPrefix`
+
+
+v4.0.0-alpha.4 (2019-01-11)
+---------------------------
+
+API changes:
+- in `eventDrop` callback, the `prevEvent` property has been renamed to `oldEvent`
+
+bugfixes that preexisted v4
+- forceEventDuration takes wrong duration when switching between all day and timed event (#4097)
+- first day in View, event spans from previous day ignoring nextDayThreshold (#3943)
+- eventResize helper element should go through eventDestroy (#3543)
+- set touchstart listeners as passive (#4149)
+
+bugfixes for regressions: #4363, #4422, #4331, #4342, #4416, #4333, #4350, #4348, #4149, #4444
+
+also, all bugfixes from [v3.10.0](https://github.com/fullcalendar/fullcalendar/releases/tag/v3.10.0) have been merged
+
+
+v4.0.0-alpha.3 (2018-12-21)
+---------------------------
+
+Changes since last alpha release:
+- Calendar::getView method removed. Use Calendar::view property instead
+- the event JSON feed property `extraData` has been renamed `extraParams`
+- the external Draggable property `time` has been renamed `startTime`
+- the constraint setting can accept an array of objects
+- MonthView class is no longer exposed. Has been rolled into BasicView,
+  which is exposed instead.
+
+Regressions from v3: #4421, #4420
+
+More info:
+https://fullcalendar.io/blog/2018/12/alpha-release-scheduler-support
+https://fullcalendar.io/docs/v4/release-notes
+
+
+v4.0.0-alpha.2 (2018-10-02)
+---------------------------
+
+See https://fullcalendar.io/docs/v4/release-notes
+
+
+v4.0.0-alpha (2018-04-13)
+-------------------------
+
+See https://fullcalendar.io/blog/2018/04/alpha-release-jquery-removal
+
+
+v3.10.0 (2019-01-10)
+--------------------
+
+POTENTIALLY BREAKING CHANGE:
+The jquery and moment packages have been moved to peerDependencies. If you are using
+NPM to install fullcalendar, you'll need to explicitly add jquery and moment as
+dependencies of your project. NPM will not install them automatically. (#4136, #4233)
+
+New Features:
+- events from a Google Calendar event source will receive extended props (#4123)
+- export more classes and util functions (#4124)
+- new locales: zh-hk (#4266), be (#4274)
+
+Bugfixes:
+- not accepting dayClicks/selects because of overflow-x:hidden on html/body (#3615)
+- event end time not displayed when duration is one slot, in agenda view (#3049)
+- switching views before event fetch resolves, JS error (#3689)
+- single-day allDay event not showing when time is specified (#3854)
+- prev button doesn't work when previous days are hidden by hiddenDays and dayCount
+  is greater than dateIncrement (#4202)
+- calendar locale not used in all moments objects (#4174)
+- background event background color does not completely fill cells in Chrome (#4145)
+- provide a delta for eventResize when resizing from start (#4135)
+- IE11 memory leak from not removing handler correctly (#4311)
+- make touchstart handlers passive (#4087)
+- fixed typescript definition for: eventAllow (#4243), selectAllow (#4319)
+- fixed locales: de (#4197, #4371), hu (#4203), tr (#4312), ja (#4329)
+
+
+v3.9.0 (2018-03-04)
+-------------------
+
+- Bootstrap 4 support (#4032, #4065, thx @GeekJosh)
+- add OptionsInput to the fullcalendar.d.ts exports (#4040, #4006)
+- columnHeaderFormat/columnHeaderHtml/columnHeaderText in .d.ts file (#4061, #4085)
+- list-view auto-height not working (#3346, #4071, thx @WhatTheBuild)
+- bump momentjs minimum version to 2.20.1, for locale fixes (#4014)
+- swedish week header translation fix (#4082)
+- dutch year translation (#4069)
+
+
+v3.8.2 (2018-01-30)
+-------------------
+
+Bugfixes:
+- Fix TypeScript definitions file with strictNullChecks (#4035)
+
+
+v3.8.1 (2018-01-28)
+-------------------
+
+Bugfixes:
+- TypeScript definition file not compatible with noImplicitAny (#4017)
+- ES6 classes are not supported for grid class (#3437)
+- day numbers in month view should be localized (#3339)
+- select helper is resizable, causes js error (#3764)
+- selecting over existing select helper causes js error (#4031)
+- eventOrder doesn't work on custom fields (#3950)
+- aria label on button icons (#4023)
+- dynamic option changes to select/overlap/allow doesn't cause rerender
+
+Locales:
+- added Georgian (#3994)
+- added Bosnian (#4029)
+
+
+v3.8.0 (2017-12-18)
+-------------------
+
+- new settings for month/agenda/basic views (#3078):
+  - `columnHeaderFormat` (renamed from `columnFormat`)
+  - `columnHeaderText`
+  - `columnHeaderHtml`
+- TypeScript definition file (fullcalendar.d.ts) included in npm package (#3889)
+- codebase using SASS, though not taking advantage of it yet (#3463)
+- codebase fully ported to TypeScript / Webpack
+- Afrikaans locale fix (#3862)
+
+
 v3.7.0 (2017-11-13)
 -------------------
 
@@ -1050,7 +1212,7 @@ v1.4.3 (2009-12-22)
 
 - added destroy method
 - Google Calendar event pages respect currentTimezone
-- caching now handled by jQuery's ajax	
+- caching now handled by jQuery's ajax
 - protection from setting aspectRatio to zero
 - bugfixes
 	- parseISO8601 and DST caused certain events to display day before
