@@ -10,6 +10,8 @@ import EventApi from '../api/EventApi'
 import FgEventRenderer from './renderers/FgEventRenderer'
 import FillRenderer from './renderers/FillRenderer'
 import { EventInteractionState } from '../interactions/event-interaction-state'
+import View from '../View'
+import { EventHandlerName, EventHandlerArgs } from '../types/input-types'
 
 export type DateComponentHash = { [uid: string]: DateComponent<any> }
 
@@ -106,6 +108,10 @@ export default class DateComponent<PropsType> extends Component<PropsType> {
   // -----------------------------------------------------------------------------------------------------------------
 
 
+  buildPositionCaches() {
+  }
+
+
   queryHit(positionLeft: number, positionTop: number, elWidth: number, elHeight: number): Hit | null {
     return null // this should be abstract
   }
@@ -149,21 +155,21 @@ export default class DateComponent<PropsType> extends Component<PropsType> {
   // TODO: move to Calendar
 
 
-  publiclyTrigger(name, args) {
+  publiclyTrigger<T extends EventHandlerName>(name: T, args?: EventHandlerArgs<T>) {
     let calendar = this.calendar
 
     return calendar.publiclyTrigger(name, args)
   }
 
 
-  publiclyTriggerAfterSizing(name, args) {
+  publiclyTriggerAfterSizing<T extends EventHandlerName>(name: T, args: EventHandlerArgs<T>) {
     let calendar = this.calendar
 
     return calendar.publiclyTriggerAfterSizing(name, args)
   }
 
 
-  hasPublicHandlers(name) {
+  hasPublicHandlers<T extends EventHandlerName>(name: T) {
     let calendar = this.calendar
 
     return calendar.hasPublicHandlers(name)
@@ -187,7 +193,7 @@ export default class DateComponent<PropsType> extends Component<PropsType> {
             isStart: seg.isStart,
             isEnd: seg.isEnd,
             el: seg.el,
-            view: this // ?
+            view: this as unknown as View // safe to cast because this method is only called on context.view
           }
         ])
       }
@@ -217,7 +223,7 @@ export default class DateComponent<PropsType> extends Component<PropsType> {
             ),
             isMirror: isMirrors,
             el: seg.el,
-            view: this // ?
+            view: this as unknown as View // safe to cast because this method is only called on context.view
           }
         ])
       }
@@ -232,7 +238,9 @@ export default class DateComponent<PropsType> extends Component<PropsType> {
     return !(this.props as any).eventDrag && // HACK
       !(this.props as any).eventResize && // HACK
       !elementClosest(el, '.fc-mirror') &&
-      !this.isInPopover(el) // how to determine if not in a sub-component???
+      (this.isPopover() || !this.isInPopover(el))
+      // ^above line ensures we don't detect a seg interaction within a nested component.
+      // it's a HACK because it only supports a popover as the nested component.
   }
 
 
@@ -246,10 +254,13 @@ export default class DateComponent<PropsType> extends Component<PropsType> {
   }
 
 
-  // is the element inside of an inner popover?
+  isPopover() {
+    return this.el.classList.contains('fc-popover')
+  }
+
+
   isInPopover(el: HTMLElement) {
-    let popoverEl = elementClosest(el, '.fc-popover')
-    return popoverEl && popoverEl !== this.el // if the current component IS a popover, okay
+    return Boolean(elementClosest(el, '.fc-popover'))
   }
 
 }

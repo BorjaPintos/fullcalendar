@@ -6,9 +6,9 @@ import {
   rangeContainsRange,
   Hit,
   InteractionSettingsStore,
-  mapHash
+  mapHash,
+  ElementDragging
 } from '@fullcalendar/core'
-import ElementDragging from '../dnd/ElementDragging'
 import OffsetTracker from '../OffsetTracker'
 
 /*
@@ -140,6 +140,8 @@ export default class HitDragging {
 
   prepareHits() {
     this.offsetTrackers = mapHash(this.droppableStore, function(interactionSettings) {
+      interactionSettings.component.buildPositionCaches()
+
       return new OffsetTracker(interactionSettings.el)
     })
   }
@@ -173,7 +175,7 @@ export default class HitDragging {
 
         if (
           // must be within the element's bounds
-          positionLeft >= 0 && positionTop < width &&
+          positionLeft >= 0 && positionLeft < width &&
           positionTop >= 0 && positionTop < height
         ) {
           let hit = component.queryHit(positionLeft, positionTop, width, height)

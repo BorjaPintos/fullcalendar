@@ -16,15 +16,15 @@ describe('recurring events', function() {
 
       var events = currentCalendar.getEvents()
 
-      expect(events[0].start).toEqualDate('2017-07-04T09:00:00') // local
-      expect(events[0].end).toEqualDate('2017-07-04T11:00:00') // local
+      expect(events[0].start).toEqualLocalDate('2017-07-04T09:00:00')
+      expect(events[0].end).toEqualLocalDate('2017-07-04T11:00:00')
 
-      expect(events[1].start).toEqualDate('2017-07-06T09:00:00') // local
-      expect(events[1].end).toEqualDate('2017-07-06T11:00:00') // local
+      expect(events[1].start).toEqualLocalDate('2017-07-06T09:00:00')
+      expect(events[1].end).toEqualLocalDate('2017-07-06T11:00:00')
     })
   })
 
-  describe('when give recur range', function() {
+  describe('when given recur range', function() {
     pushOptions({
       defaultView: 'dayGridMonth',
       defaultDate: '2017-07-03',
@@ -54,6 +54,26 @@ describe('recurring events', function() {
         let events = currentCalendar.getEvents()
         expect(events.length).toBe(0)
       })
+    })
+  })
+
+  describe('when event has a duration', function() {
+    pushOptions({
+      defaultView: 'dayGridWeek',
+      defaultDate: '2019-06-02',
+      events: [
+        { daysOfWeek: [ 6 ], duration: { days: 2 } }
+      ]
+    })
+
+    it('will render from week before', function() {
+      initCalendar()
+      let events = currentCalendar.getEvents()
+      expect(events[0].start).toEqualDate('2019-06-01')
+      expect(events[0].end).toEqualDate('2019-06-03')
+      expect(events[1].start).toEqualDate('2019-06-08')
+      expect(events[1].end).toEqualDate('2019-06-10')
+      expect(events.length).toBe(2)
     })
   })
 

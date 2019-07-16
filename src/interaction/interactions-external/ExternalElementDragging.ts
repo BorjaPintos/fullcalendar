@@ -13,9 +13,9 @@ import {
   elementMatches,
   enableCursor, disableCursor,
   isInteractionValid,
-  View
+  View,
+  ElementDragging
 } from '@fullcalendar/core'
-import ElementDragging from '../dnd/ElementDragging'
 import HitDragging from '../interactions/HitDragging'
 import { __assign } from 'tslib'
 
@@ -130,12 +130,12 @@ export default class ExternalElementDragging {
       let finalHit = this.hitDragging.finalHit!
       let finalView = finalHit.component.view
       let dragMeta = this.dragMeta!
-      let arg = receivingCalendar.buildDatePointApi(finalHit.dateSpan) as ExternalDropApi
-
-      arg.draggedEl = pev.subjectEl as HTMLElement
-      arg.jsEvent = pev.origEvent
-      arg.view = finalView
-
+      let arg = {
+        ...receivingCalendar.buildDatePointApi(finalHit.dateSpan),
+        draggedEl: pev.subjectEl as HTMLElement,
+        jsEvent: pev.origEvent as MouseEvent, // Is this always a mouse event? See #4655
+        view: finalView
+      }
       receivingCalendar.publiclyTrigger('drop', [ arg ])
 
       if (dragMeta.create) {
@@ -154,7 +154,7 @@ export default class ExternalElementDragging {
         // signal that an external event landed
         receivingCalendar.publiclyTrigger('eventReceive', [
           {
-            draggedEl: pev.subjectEl,
+            draggedEl: pev.subjectEl as HTMLElement,
             event: new EventApi(
               receivingCalendar,
               droppableEvent.def,
@@ -216,7 +216,7 @@ function computeEventForDateSpan(dateSpan: DateSpan, dragMeta: DragMeta, calenda
     defProps,
     dragMeta.sourceId,
     dateSpan.allDay,
-    Boolean(dragMeta.duration), // hasEnd
+    calendar.opt('forceEventDuration') || Boolean(dragMeta.duration), // hasEnd
     calendar
   )
 

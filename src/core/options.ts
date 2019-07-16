@@ -5,6 +5,7 @@ import FuncEventSourcePlugin from './event-sources/func-event-source'
 import JsonFeedEventSourcePlugin from './event-sources/json-feed-event-source'
 import SimpleRecurrencePlugin from './structs/recurring-event-simple'
 import { capitaliseFirstLetter } from './util/misc'
+import DefaultOptionChangeHandlers from './option-change-handlers'
 
 export const config = {} as any // TODO: make these options
 
@@ -60,7 +61,6 @@ export const globalDefaults = {
   timeGridEventMinHeight: 0,
 
   themeSystem: 'standard',
-  // themeButtonIcons: null,
 
   // eventResizableFromStart: false,
   dragRevertDuration: 500,
@@ -99,16 +99,11 @@ export const rtlDefaults = { // right-to-left defaults
     right: 'title'
   },
   buttonIcons: {
-    prev: 'right-single-arrow',
-    next: 'left-single-arrow',
-    prevYear: 'right-double-arrow',
-    nextYear: 'left-double-arrow'
-  },
-  themeButtonIcons: {
-    prev: 'circle-triangle-e',
-    next: 'circle-triangle-w',
-    nextYear: 'seek-prev',
-    prevYear: 'seek-next'
+    // TODO: make RTL support the responibility of the theme
+    prev: 'fc-icon-chevron-right',
+    next: 'fc-icon-chevron-left',
+    prevYear: 'fc-icon-chevrons-right',
+    nextYear: 'fc-icon-chevrons-left'
   }
 }
 
@@ -117,8 +112,7 @@ let complexOptions = [ // names of options that are objects whose properties sho
   'header',
   'footer',
   'buttonText',
-  'buttonIcons',
-  'themeButtonIcons'
+  'buttonIcons'
 ]
 
 
@@ -135,7 +129,8 @@ const INTERNAL_PLUGINS: PluginDef[] = [
   ArrayEventSourcePlugin,
   FuncEventSourcePlugin,
   JsonFeedEventSourcePlugin,
-  SimpleRecurrencePlugin
+  SimpleRecurrencePlugin,
+  DefaultOptionChangeHandlers
 ]
 
 export function refinePluginDefs(pluginInputs: any[]): PluginDef[] {

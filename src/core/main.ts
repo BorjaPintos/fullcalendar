@@ -50,10 +50,11 @@ export {
   intersectRects,
   Rect, pointInsideRect,
   constrainPoint,
-  getRectCenter, diffPoints, Point
+  getRectCenter, diffPoints, Point,
+  translateRect
 } from './util/geom'
 
-export { isPropsEqual, mapHash, filterHash } from './util/object'
+export { mapHash, filterHash, isPropsEqual } from './util/object'
 
 export {
   findElements,
@@ -138,6 +139,7 @@ export { Hit } from './interactions/hit'
 export { dateSelectionJoinTransformer } from './interactions/date-selecting'
 export { eventDragMutationMassager } from './interactions/event-dragging'
 export { EventResizeJoinTransforms } from './interactions/event-resizing'
+export { default as ElementDragging } from './interactions/ElementDragging'
 
 export { formatDate, formatRange } from './formatting-api'
 

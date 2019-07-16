@@ -1,9 +1,10 @@
 import { DateMarker, startOfDay, addDays } from './datelib/marker'
-import { Duration, createDuration, getWeeksFromInput, asRoughDays, asRoughMs, greatestDurationDenominator } from './datelib/duration'
+import { Duration, createDuration, getWeeksFromInput, asRoughDays, asRoughMs, greatestDurationDenominator, durationsEqual } from './datelib/duration'
 import { DateRange, OpenDateRange, constrainMarkerToRange, intersectRanges, rangesIntersect, parseRange, rangesEqual } from './datelib/date-range'
 import { ViewSpec } from './structs/view-spec'
 import { DateEnv } from './datelib/env'
 import Calendar from './Calendar'
+import { computeVisibleDayRange } from './util/misc'
 
 
 export interface DateProfile {
@@ -44,11 +45,11 @@ export default class DateProfileGenerator {
 
 
   // Builds a structure with info about what the dates/ranges will be for the "prev" view.
-  buildPrev(currentDateProfile: DateProfile): DateProfile {
+  buildPrev(currentDateProfile: DateProfile, currentDate: DateMarker): DateProfile {
     let { dateEnv } = this
 
     let prevDate = dateEnv.subtract(
-      currentDateProfile.currentRange.start,
+      dateEnv.startOf(currentDate, currentDateProfile.currentRangeUnit), // important for start-of-month
       currentDateProfile.dateIncrement
     )
 
@@ -57,11 +58,11 @@ export default class DateProfileGenerator {
 
 
   // Builds a structure with info about what the dates/ranges will be for the "next" view.
-  buildNext(currentDateProfile: DateProfile): DateProfile {
+  buildNext(currentDateProfile: DateProfile, currentDate: DateMarker): DateProfile {
     let { dateEnv } = this
 
     let nextDate = dateEnv.add(
-      currentDateProfile.currentRange.start,
+      dateEnv.startOf(currentDate, currentDateProfile.currentRangeUnit), // important for start-of-month
       currentDateProfile.dateIncrement
     )
 
@@ -356,8 +357,14 @@ export default class DateProfileGenerator {
     }
 
     if (val) {
-      return parseRange(val, this.dateEnv)
+      val = parseRange(val, this.dateEnv)
     }
+
+    if (val) {
+      val = computeVisibleDayRange(val)
+    }
+
+    return val
   }
 
 
@@ -440,7 +447,10 @@ export default class DateProfileGenerator {
 
 }
 
+// TODO: find a way to avoid comparing DateProfiles. it's tedious
 export function isDateProfilesEqual(p0: DateProfile, p1: DateProfile) {
   return rangesEqual(p0.activeRange, p1.activeRange) &&
-    rangesEqual(p0.validRange, p1.validRange)
+    rangesEqual(p0.validRange, p1.validRange) &&
+    durationsEqual(p0.minTime, p1.minTime) &&
+    durationsEqual(p0.maxTime, p1.maxTime)
 }

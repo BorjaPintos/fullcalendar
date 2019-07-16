@@ -1,85 +1,58 @@
 
-v4.0.0-beta.3/4 (2019-02-06)
-----------------------------
-NPM problems. Had to push another release. No code changes.
+v4.2.0 (2019-06-02)
+-------------------
+- fix recurring event expansion when event starts before view and has duration (#4617, #4635)
+- simple event recurring now allows a duration property on the event object
+- internal Calendar::setOptions method removed (never meant to be public)
 
 
-v4.0.0-beta.2 (2019-02-06)
---------------------------
+v4.1.0 (2019-04-24)
+-------------------
 
-BIG changes since last alpha release:
-(see https://fullcalendar.io/docs/v4/release-notes for more info)
-- all functionality is broken up into plugins
-- changed the names of many views (ex: agendaWeek -> timeGridWeek)
-- changed the names of the npm packages (ex: @fullcalendar/core)
-- technique for initializing a calendar (and using plugins) has changed
-- SuperAgent is no longer needed
-- Bootstrap 3 theme support dropped
-- jQuery UI theme support dropped
-- Bower support dropped
-- Composer support *temporarily* dropped
-- a new npm-run based dev workflow
-- bundled via Rollup (instead of Webpack)
+- scrollToTime method (#467)
+- ISO8601 datetime strings with no 'T' not parsed in Safari (#4610)
+- all-day dropped events after third not being draggable (#4616)
+- dateClick/selecting sometime report wrong dates after calendar resize (#4608)
+- js error when using navLinks with header=false (#4619)
+- js error when more+ link and multiple async event sources (#4585)
+- timeGridEventMinHeight is not defined in OptionsInput interface (#4605)
+- Interdependent package semvers with carrot, use tilde (#4620)
+- dayRender now called for day columns in timeGrid views
 
-Smaller changes since last alpha release:
-- no need to specify `timeZoneImpl` setting. simply use luxon or moment-timezone plugin instead
-- `agendaEventMinHeight` renamed to `timeGridEventMinHeight`
-- for registering a custom view use `createPlugin` instead of `defineView`
-- `groupByDatesAndResources` and `groupByResources` removed. Use `datesAboveResources` instead
-- removed the deprecated `theme` settings. use `themeSystem` instead
-- for Boostrap 4 theme support, specify `themeSystem: 'boostrap'` instead of (`'bootstrap4'`)
 
-Really obscure changes (TODO: move these to final changelog):
-- `MAX_TIMELINE_SLOTS` moved to `(packageRoot).config.MAX_TIMELINE_SLOTS`
+v4.0.2 (2019-04-03)
+-------------------
+
+Bugfixes:
+- eventAllow and constraints not respected when dragging event between calendars
+- viewSkeletonRender now in typedefs (#4589)
+- invalid draggedEvent properties in eventAllow for external dnd (#4575)
+- forceEventDuration not working with external dnd (#4597)
+- rrule displaying time when allDay is true (#4576)
+- rrule events not displaying at interval start (#4596)
+- prev button not initially working when starting on 31st of a month (#4595)
+- clicking X in popover generating a dayClick (#4584)
+- locale file used as single script tag not affecting calendar locale (#4581)
+- header "today" button not translated for pt and pt-br (#4591)
+- fa locale typo (#4582)
+
+
+v4.0.1 (2019-03-18)
+-------------------
+
+Read about all the changes in v4:
+https://fullcalendar.io/docs/upgrading-from-v3
+
+Obscure breaking changes from v3->v4 not mentioned elsewhere:
 - `touchMouseIgnoreWait` moved to `(packageRoot).config.touchMouseIgnoreWait`
 - `dataAttrPrefix` moved to `(packageRoot).config.dataAttrPrefix`
 
+Advancements since latest prerelease:
+- New styling for buttons and icons in header. New styling for events.
+- Bugfixes: #4539, #4503, #4534, #4505, #4477, #4467, #4454, #4458, #4483,
+  #4517, #4506, #4435, #4498, #4497, #4446, #4432, #4530
 
-v4.0.0-alpha.4 (2019-01-11)
----------------------------
-
-API changes:
-- in `eventDrop` callback, the `prevEvent` property has been renamed to `oldEvent`
-
-bugfixes that preexisted v4
-- forceEventDuration takes wrong duration when switching between all day and timed event (#4097)
-- first day in View, event spans from previous day ignoring nextDayThreshold (#3943)
-- eventResize helper element should go through eventDestroy (#3543)
-- set touchstart listeners as passive (#4149)
-
-bugfixes for regressions: #4363, #4422, #4331, #4342, #4416, #4333, #4350, #4348, #4149, #4444
-
-also, all bugfixes from [v3.10.0](https://github.com/fullcalendar/fullcalendar/releases/tag/v3.10.0) have been merged
-
-
-v4.0.0-alpha.3 (2018-12-21)
----------------------------
-
-Changes since last alpha release:
-- Calendar::getView method removed. Use Calendar::view property instead
-- the event JSON feed property `extraData` has been renamed `extraParams`
-- the external Draggable property `time` has been renamed `startTime`
-- the constraint setting can accept an array of objects
-- MonthView class is no longer exposed. Has been rolled into BasicView,
-  which is exposed instead.
-
-Regressions from v3: #4421, #4420
-
-More info:
-https://fullcalendar.io/blog/2018/12/alpha-release-scheduler-support
-https://fullcalendar.io/docs/v4/release-notes
-
-
-v4.0.0-alpha.2 (2018-10-02)
----------------------------
-
-See https://fullcalendar.io/docs/v4/release-notes
-
-
-v4.0.0-alpha (2018-04-13)
--------------------------
-
-See https://fullcalendar.io/blog/2018/04/alpha-release-jquery-removal
+NOTE: version "4.0.0" was skipped because of an NPM publishing error
 
 
 v3.10.0 (2019-01-10)

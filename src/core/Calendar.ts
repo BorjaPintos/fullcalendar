@@ -4,12 +4,12 @@ import { default as EmitterMixin, EmitterInterface } from './common/EmitterMixin
 import OptionsManager from './OptionsManager'
 import View from './View'
 import Theme from './theme/Theme'
-import { OptionsInput } from './types/input-types'
+import { OptionsInput, EventHandlerName, EventHandlerArgs } from './types/input-types'
 import { Locale, buildLocale, parseRawLocales, RawLocaleMap } from './datelib/locale'
 import { DateEnv, DateInput } from './datelib/env'
 import { DateMarker, startOfDay } from './datelib/marker'
 import { createFormatter } from './datelib/formatting'
-import { Duration, createDuration } from './datelib/duration'
+import { Duration, createDuration, DurationInput } from './datelib/duration'
 import reduce from './reducers/main'
 import { parseDateSpan, DateSpanInput, DateSpan, buildDateSpanApi, DateSpanApi, buildDatePointApi, DatePointApi } from './structs/date-span'
 import { memoize, memoizeOutput } from './util/memoize'
@@ -54,6 +54,9 @@ export type DateSpanTransform = (dateSpan: DateSpan, calendar: Calendar) => any
 export type CalendarInteraction = { destroy() }
 export type CalendarInteractionClass = { new(calendar: Calendar): CalendarInteraction }
 
+export type OptionChangeHandler = (propValue: any, calendar: Calendar, deepEqual) => void
+export type OptionChangeHandlerMap = { [propName: string]: OptionChangeHandler }
+
 export default class Calendar {
 
   // global handler registry
@@ -95,7 +98,7 @@ export default class Calendar {
   removeNavLinkListener: any
 
   windowResizeProxy: any
-  isResizing: boolean
+  isHandlingWindowResize: boolean
 
   state: CalendarState
   actionQueue = []
@@ -125,12 +128,7 @@ export default class Calendar {
     this.pluginSystem = new PluginSystem()
 
     // only do once. don't do in handleOptions. because can't remove plugins
-    let pluginDefs = refinePluginDefs(
-      this.optionsManager.computed.plugins || []
-    )
-    for (let pluginDef of pluginDefs) {
-      this.pluginSystem.add(pluginDef)
-    }
+    this.addPluginInputs(this.optionsManager.computed.plugins || [])
 
     this.handleOptions(this.optionsManager.computed)
     this.publiclyTrigger('_init') // for tests
@@ -140,6 +138,15 @@ export default class Calendar {
       .map((calendarInteractionClass) => {
         return new calendarInteractionClass(this)
       })
+  }
+
+
+  addPluginInputs(pluginInputs) {
+    let pluginDefs = refinePluginDefs(pluginInputs)
+
+    for (let pluginDef of pluginDefs) {
+      this.pluginSystem.add(pluginDef)
+    }
   }
 
 
@@ -168,11 +175,13 @@ export default class Calendar {
     if (this.component) {
       this.unbindHandlers()
       this.component.destroy() // don't null-out. in case API needs access
-      this.component = null
+      this.component = null // umm ???
 
       for (let interaction of this.calendarInteractions) {
         interaction.destroy()
       }
+
+      this.publiclyTrigger('_destroyed')
     }
   }
 
@@ -188,19 +197,20 @@ export default class Calendar {
       let gotoOptions: any = anchorEl.getAttribute('data-goto')
       gotoOptions = gotoOptions ? JSON.parse(gotoOptions) : {}
 
-      let date = this.dateEnv.createMarker(gotoOptions.date)
+      let { dateEnv } = this
+      let dateMarker = dateEnv.createMarker(gotoOptions.date)
       let viewType = gotoOptions.type
 
       // property like "navLinkDayClick". might be a string or a function
       let customAction = this.viewOpt('navLink' + capitaliseFirstLetter(viewType) + 'Click')
 
       if (typeof customAction === 'function') {
-        customAction(date, ev)
+        customAction(dateEnv.toDate(dateMarker), ev)
       } else {
         if (typeof customAction === 'string') {
           viewType = customAction
         }
-        this.zoomTo(date, viewType)
+        this.zoomTo(dateMarker, viewType)
       }
     })
 
@@ -307,7 +317,7 @@ export default class Calendar {
       }
 
       if (oldState.dateProfile !== newState.dateProfile || this.needsFullRerender) {
-        if (oldState.dateProfile) {
+        if (oldState.dateProfile && view) { // why would view be null!?
           this.publiclyTrigger('datesDestroy', [
             {
               view,
@@ -319,7 +329,7 @@ export default class Calendar {
       }
 
       if (oldState.viewType !== newState.viewType || this.needsFullRerender) {
-        if (oldState.viewType) {
+        if (oldState.viewType && view) { // why would view be null!?
           this.publiclyTrigger('viewSkeletonDestroy', [
             {
               view,
@@ -367,7 +377,10 @@ export default class Calendar {
     this.renderingPauseDepth++
     func()
     this.renderingPauseDepth--
-    this.requestRerender()
+
+    if (this.needsRerender) {
+      this.requestRerender()
+    }
   }
 
 
@@ -445,7 +458,7 @@ export default class Calendar {
     })
 
     if (savedScroll) {
-      component.view.applyScroll(savedScroll)
+      component.view.applyScroll(savedScroll, false)
     }
 
     if (this.isViewUpdated) {
@@ -480,35 +493,8 @@ export default class Calendar {
   // -----------------------------------------------------------------------------------------------------------------
 
 
-  setOption(name: string, value: any) {
-    let oldDateEnv = this.dateEnv
-
-    this.optionsManager.add(name, value)
-    this.handleOptions(this.optionsManager.computed)
-
-    if (name === 'height' || name === 'contentHeight' || name === 'aspectRatio') {
-      this.resizeComponent()
-    } else if (name === 'timeZone') {
-      this.dispatch({
-        type: 'CHANGE_TIMEZONE',
-        oldDateEnv
-      })
-    } else if (name === 'defaultDate' || name === 'defaultView') {
-      // can't change date this way. use gotoDate instead
-    } else if (/^(event|select)(Overlap|Constraint|Allow)$/.test(name)) {
-      // doesn't affect rendering. only interactions.
-    } else {
-
-      /* HACK
-      has the same effect as calling this.requestRerender(true)
-      but recomputes the state's dateProfile
-      */
-      this.needsFullRerender = true
-      this.dispatch({
-        type: 'SET_VIEW_TYPE',
-        viewType: this.state.viewType
-      })
-    }
+  setOption(name: string, val) {
+    this.mutateOptions({ [name]: val }, [], true)
   }
 
 
@@ -531,7 +517,84 @@ export default class Calendar {
     return this.viewSpecs[this.state.viewType].options
   }
 
+  /*
+  handles option changes (like a diff)
+  */
+  mutateOptions(updates, removals: string[], isDynamic?: boolean, deepEqual?) {
+    let changeHandlers = this.pluginSystem.hooks.optionChangeHandlers
+    let normalUpdates = {}
+    let specialUpdates = {}
+    let oldDateEnv = this.dateEnv // do this before handleOptions
+    let isTimeZoneDirty = false
+    let isSizeDirty = false
+    let anyDifficultOptions = Boolean(removals.length)
 
+    for (let name in updates) {
+      if (changeHandlers[name]) {
+        specialUpdates[name] = updates[name]
+      } else {
+        normalUpdates[name] = updates[name]
+      }
+    }
+
+    for (let name in normalUpdates) {
+      if (/^(height|contentHeight|aspectRatio)$/.test(name)) {
+        isSizeDirty = true
+      } else if (/^(defaultDate|defaultView)$/.test(name)) {
+        // can't change date this way. use gotoDate instead
+      } else {
+        anyDifficultOptions = true
+
+        if (name === 'timeZone') {
+          isTimeZoneDirty = true
+        }
+      }
+    }
+
+    this.optionsManager.mutate(normalUpdates, removals, isDynamic)
+
+    if (anyDifficultOptions) {
+      this.handleOptions(this.optionsManager.computed)
+      this.needsFullRerender = true
+    }
+
+    this.batchRendering(() => {
+
+      if (anyDifficultOptions) {
+
+        if (isTimeZoneDirty) {
+          this.dispatch({
+            type: 'CHANGE_TIMEZONE',
+            oldDateEnv
+          })
+        }
+
+        /* HACK
+        has the same effect as calling this.requestRerender(true)
+        but recomputes the state's dateProfile
+        */
+        this.dispatch({
+          type: 'SET_VIEW_TYPE',
+          viewType: this.state.viewType
+        })
+
+      } else if (isSizeDirty) {
+        this.updateSize()
+      }
+
+      // special updates
+      if (deepEqual) {
+        for (let name in specialUpdates) {
+          changeHandlers[name](specialUpdates[name], this, deepEqual)
+        }
+      }
+
+    })
+  }
+
+  /*
+  rebuilds things based off of a complete set of refined options
+  */
   handleOptions(options) {
     let pluginHooks = this.pluginSystem.hooks
 
@@ -591,13 +654,13 @@ export default class Calendar {
   // -----------------------------------------------------------------------------------------------------------------
 
 
-  hasPublicHandlers(name: string): boolean {
+  hasPublicHandlers<T extends EventHandlerName>(name: T): boolean {
     return this.hasHandlers(name) ||
       this.opt(name) // handler specified in options
   }
 
 
-  publiclyTrigger(name: string, args?) {
+  publiclyTrigger<T extends EventHandlerName>(name: T, args?: EventHandlerArgs<T>) {
     let optHandler = this.opt(name)
 
     this.triggerWith(name, this, args)
@@ -608,7 +671,7 @@ export default class Calendar {
   }
 
 
-  publiclyTriggerAfterSizing(name, args) {
+  publiclyTriggerAfterSizing<T extends EventHandlerName>(name: T, args: EventHandlerArgs<T>) {
     let { afterSizingTriggers } = this;
 
     (afterSizingTriggers[name] || (afterSizingTriggers[name] = [])).push(args)
@@ -620,7 +683,7 @@ export default class Calendar {
 
     for (let name in afterSizingTriggers) {
       for (let args of afterSizingTriggers[name]) {
-        this.publiclyTrigger(name, args)
+        this.publiclyTrigger(name as EventHandlerName, args)
       }
     }
 
@@ -643,7 +706,7 @@ export default class Calendar {
 
     if (dateOrRange) {
       if ((dateOrRange as DateRangeInput).start && (dateOrRange as DateRangeInput).end) { // a range
-        this.optionsManager.add('visibleRange', dateOrRange) // will not rerender
+        this.optionsManager.mutate({ visibleRange: dateOrRange }, []) // will not rerender
         this.handleOptions(this.optionsManager.computed) // ...but yuck
       } else { // a date
         dateMarker = this.dateEnv.createMarker(dateOrRange as DateInput) // just like gotoDate
@@ -689,12 +752,19 @@ export default class Calendar {
   // Given a duration singular unit, like "week" or "day", finds a matching view spec.
   // Preference is given to views that have corresponding buttons.
   getUnitViewSpec(unit: string): ViewSpec | null {
-    let viewTypes
+    let { component } = this
+    let viewTypes = []
     let i
     let spec
 
-    // put views that have buttons first. there will be duplicates, but oh well
-    viewTypes = this.component.header.viewsWithButtons // TODO: include footer as well?
+    // put views that have buttons first. there will be duplicates, but oh
+    if (component.header) {
+      viewTypes.push(...component.header.viewsWithButtons)
+    }
+    if (component.footer) {
+      viewTypes.push(...component.footer.viewsWithButtons)
+    }
+
     for (let viewType in this.viewSpecs) {
       viewTypes.push(viewType)
     }
@@ -829,31 +899,23 @@ export default class Calendar {
 
 
   windowResize(ev: Event) {
-    if ((ev as any).target === window) { // not a jqui resize event
-      if (this.resizeComponent()) { // returns true on success
-        this.publiclyTrigger('windowResize', [ this.view ])
-      }
+    if (
+      !this.isHandlingWindowResize &&
+      this.component && // why?
+      (ev as any).target === window // not a jqui resize event
+    ) {
+      this.isHandlingWindowResize = true
+      this.updateSize()
+      this.publiclyTrigger('windowResize', [ this.view ])
+      this.isHandlingWindowResize = false
     }
   }
 
 
   updateSize() { // public
-    this.resizeComponent()
-  }
-
-
-  resizeComponent(): boolean {
-
-    if (!this.isResizing && this.component) {
-
-      this.isResizing = true
-      this.component.updateSize(true) // isResize=true
-      this.isResizing = false
-
-      return true // signal success
+    if (this.component) { // when?
+      this.component.updateSize(true)
     }
-
-    return false
   }
 
 
@@ -938,11 +1000,11 @@ export default class Calendar {
 
 
   triggerDateSelect(selection: DateSpan, pev?: PointerDragEvent) {
-    let arg = this.buildDateSpanApi(selection) as DateSelectionApi
-
-    arg.jsEvent = pev ? pev.origEvent : null
-    arg.view = this.view
-
+    const arg = {
+      ...this.buildDateSpanApi(selection),
+      jsEvent: pev ? pev.origEvent as MouseEvent : null, // Is this always a mouse event? See #4655
+      view: this.view
+    }
     this.publiclyTrigger('select', [ arg ])
   }
 
@@ -959,11 +1021,12 @@ export default class Calendar {
 
   // TODO: receive pev?
   triggerDateClick(dateSpan: DateSpan, dayEl: HTMLElement, view: View, ev: UIEvent) {
-    let arg = this.buildDatePointApi(dateSpan) as DateClickApi
-
-    arg.dayEl = dayEl
-    arg.jsEvent = ev
-    arg.view = view
+    const arg = {
+      ...this.buildDatePointApi(dateSpan),
+      dayEl,
+      jsEvent: ev as MouseEvent, // Is this always a mouse event? See #4655
+      view
+    }
 
     this.publiclyTrigger('dateClick', [ arg ])
   }
@@ -1212,6 +1275,17 @@ export default class Calendar {
     this.dispatch({ type: 'FETCH_EVENT_SOURCES' })
   }
 
+
+  // Scroll
+  // -----------------------------------------------------------------------------------------------------------------
+
+  scrollToTime(timeInput: DurationInput) {
+    let time = createDuration(timeInput)
+
+    if (time) {
+      this.component.view.scrollToTime(time)
+    }
+  }
 
 }
 

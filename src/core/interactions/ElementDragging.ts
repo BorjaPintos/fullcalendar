@@ -1,4 +1,4 @@
-import { EmitterMixin } from '@fullcalendar/core'
+import EmitterMixin from '../common/EmitterMixin'
 
 /*
 An abstraction for a dragging interaction originating on an event.
@@ -13,11 +13,11 @@ subclasses must emit:
 - pointerup
 - dragend
 */
-export default abstract class ElementDragging {
+export default abstract class ElementDragging { // TODO: rename to *Interface?
 
   emitter: EmitterMixin
 
-  constructor() {
+  constructor(el: HTMLElement) {
     this.emitter = new EmitterMixin()
   }
 
@@ -35,4 +35,10 @@ export default abstract class ElementDragging {
     // optional if subclass doesn't want to support a mirror
   }
 
+  setAutoScrollEnabled(bool: boolean) {
+    // optional
+  }
+
 }
+
+export type ElementDraggingClass = { new(el: HTMLElement): ElementDragging }

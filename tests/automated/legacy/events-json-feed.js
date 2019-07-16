@@ -101,7 +101,25 @@ describe('events as a json feed', function() {
     })
   })
 
-  it('accepts a data object', function(done) {
+  it('requests POST correctly', function(done) {
+
+    XHRMock.post(/^my-feed\.php/, function(req, res) {
+      expect(req.url().query).toEqual({})
+      expect(req.body()).toEqual('start=2014-04-27T00%3A00%3A00Z&end=2014-06-08T00%3A00%3A00Z&timeZone=UTC')
+      done()
+      return res.status(200).header('content-type', 'application/json').body('[]')
+    })
+
+    initCalendar({
+      events: {
+        url: 'my-feed.php',
+        method: 'POST'
+      },
+      timeZone: 'UTC'
+    })
+  })
+
+  it('accepts a extraParams object', function(done) {
 
     XHRMock.get(/^my-feed\.php/, function(req, res) {
       expect(req.url().query).toEqual({
@@ -117,14 +135,14 @@ describe('events as a json feed', function() {
     initCalendar({
       eventSources: [ {
         url: 'my-feed.php',
-        data: {
+        extraParams: {
           customParam: 'yes'
         }
       } ]
     })
   })
 
-  it('accepts a dynamic data function', function(done) {
+  it('accepts a dynamic extraParams function', function(done) {
 
     XHRMock.get(/^my-feed\.php/, function(req, res) {
       expect(req.url().query).toEqual({
@@ -140,7 +158,7 @@ describe('events as a json feed', function() {
     initCalendar({
       eventSources: [ {
         url: 'my-feed.php',
-        data: function() {
+        extraParams: function() {
           return {
             customParam: 'heckyeah'
           }

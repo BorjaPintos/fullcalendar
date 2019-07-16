@@ -102,6 +102,33 @@ describe('eventDrop', function() {
       })
     })
 
+    // https://github.com/fullcalendar/fullcalendar/issues/4458
+    describe('when dragging an event back in time when duration not editable', function() {
+      it('should work', function(done) {
+        options.defaultDate = '2019-01-16'
+        options.eventDurationEditable = false
+        options.events = [ {
+          title: 'event',
+          start: '2019-01-16T10:30:00+00:00',
+          end: '2019-01-16T12:30:00+00:00'
+        } ]
+
+        init(
+          function() {
+            $('.fc-event').simulate('drag', {
+              dx: $('.fc-day').width() * -2 // back two day
+            })
+          },
+          function(arg) {
+            expect(arg.delta).toEqual(createDuration({ day: -2 }))
+            expect(arg.event.start).toEqualDate('2019-01-14T10:30:00+00:00')
+            expect(arg.event.end).toEqualDate('2019-01-14T12:30:00+00:00')
+            done()
+          }
+        )
+      })
+    })
+
     // TODO: tests for eventMouseEnter/eventMouseLeave firing correctly when no dragging
     it('should not fire any eventMouseEnter/eventMouseLeave events while dragging', function(done) { // issue 1297
       options.events = [
@@ -378,6 +405,36 @@ describe('eventDrop', function() {
           },
           function() {
             expect(dragged).toBe(true)
+            done()
+          }
+        )
+      })
+    })
+
+    // https://github.com/fullcalendar/fullcalendar/issues/4503
+    describe('when dragging to one of the last slots', function() {
+      it('should work', function(done) {
+        options.scrollTime = '23:00:00'
+        options.height = 400 // short enough to make scrolling happen
+        options.events = [ {
+          title: 'timed event',
+          start: '2014-06-11T18:00:00', // should be in view without scrolling
+          allDay: false
+        } ]
+
+        init(
+          function() {
+            $('.fc-event .fc-time').simulate('drag', {
+              end: $('.fc-slats tr:eq(47)')
+            })
+          },
+          function() {
+            var event = currentCalendar.getEvents()[0]
+
+            expect(event.start).toEqualDate('2014-06-11T23:30:00Z')
+            expect(event.end).toBeNull()
+            expect(event.allDay).toBe(false)
+
             done()
           }
         )

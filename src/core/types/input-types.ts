@@ -13,7 +13,7 @@ import { BusinessHoursInput } from '../structs/business-hours'
 import EventApi from '../api/EventApi'
 import { AllowFunc, ConstraintInput, OverlapFunc } from '../validation'
 import { PluginDef } from '../plugin-system'
-import { LocaleSingularArg, LocalePluralArg } from '../datelib/locale'
+import { LocaleSingularArg, RawLocale } from '../datelib/locale'
 
 
 export interface ToolbarInput {
@@ -70,14 +70,31 @@ export interface DropInfo {
   end: Date
 }
 
+// TODO: refactor OptionsInputBase to split out event handlers into a separate interface,
+// which will enable replacing the static list of event handlers below with a simpler
+// `keyof OptionsInputBaseEventHandlers`
+export type EventHandlerName =
+  '_init' | 'selectAllow' | 'eventAllow' | 'eventDataTransform' | 'datesRender' |
+  'datesDestroy' | 'dayRender' | 'windowResize' | 'dateClick' | 'eventClick' |
+  'eventMouseEnter' | 'eventMouseLeave' | 'select' | 'unselect' | 'loading' |
+  'eventRender' | 'eventPositioned' | '_eventsPositioned' | 'eventDestroy' |
+  'eventDragStart' | 'eventDragStop' | 'eventDrop' | '_destroyed' | 'drop' |
+  'eventResizeStart' | 'eventResizeStop' | 'eventResize' | 'eventReceive' |
+  'eventLeave' | 'viewSkeletonRender' | 'viewSkeletonDestroy' | '_noEventDrop' |
+  '_noEventResize' | 'eventLimitClick' |
+  'resourceRender' // BAD: put in Scheduler somehow
+
+export type EventHandlerArgs<T extends EventHandlerName> =
+  Parameters<Extract<OptionsInput[T], (...args: any[]) => any>>
+export type EventHandlerArg<T extends EventHandlerName> = EventHandlerArgs<T>[0]
+
 export interface OptionsInputBase {
   header?: boolean | ToolbarInput
   footer?: boolean | ToolbarInput
   customButtons?: { [name: string]: CustomButtonInput }
   buttonIcons?: boolean | ButtonIconsInput
   themeSystem?: 'standard' | string
-  themeButtonIcons?: boolean | ButtonIconsInput
-  bootstrapFontAwesome?: boolean | ButtonIconsInput,
+  bootstrapFontAwesome?: boolean | ButtonIconsInput
   firstDay?: number
   dir?: 'ltr' | 'rtl' | 'auto'
   weekends?: boolean
@@ -94,7 +111,8 @@ export interface OptionsInputBase {
   handleWindowResize?: boolean
   windowResizeDelay?: number
   eventLimit?: boolean | number
-  eventLimitClick?: 'popover' | 'week' | 'day' | string | ((cellinfo: CellInfo, jsevent: Event) => void)
+  eventLimitClick?: 'popover' | 'week' | 'day' | 'timeGridWeek' | 'timeGridDay' | string |
+    ((arg: { date: Date, allDay: boolean, dayEl: HTMLElement, moreEl: HTMLElement, segs: any[], hiddenSegs: any[], jsEvent: MouseEvent, view: View }) => void),
   timeZone?: string | boolean
   now?: DateInput | (() => DateInput)
   defaultView?: string
@@ -119,7 +137,7 @@ export interface OptionsInputBase {
   dateAlignment?: string
   duration?: DurationInput
   dayCount?: number
-  locales?: LocalePluralArg
+  locales?: RawLocale[]
   locale?: LocaleSingularArg
   eventTimeFormat?: FormatterInput
   columnHeader?: boolean
@@ -143,11 +161,9 @@ export interface OptionsInputBase {
   defaultTimedEventDuration?: DurationInput
   cmdFormatter?: string
   defaultRangeSeparator?: string
-
   selectConstraint?: ConstraintInput
   selectOverlap?: boolean | OverlapFunc
   selectAllow?: AllowFunc
-
   editable?: boolean
   eventStartEditable?: boolean
   eventDurationEditable?: boolean
@@ -160,7 +176,6 @@ export interface OptionsInputBase {
   eventBorderColor?: string
   eventTextColor?: string
   eventColor?: string
-
   events?: EventSourceInput
   eventSources?: EventSourceInput[]
   allDayDefault?: boolean
@@ -176,32 +191,51 @@ export interface OptionsInputBase {
   eventLongPressDelay?: number
   droppable?: boolean
   dropAccept?: string | ((draggable: any) => boolean)
-
+  eventDataTransform?: EventInputTransformer
+  allDayMaintainDuration?: boolean
+  eventResizableFromStart?: boolean
+  timeGridEventMinHeight?: number
+  allDayHtml?: string
+  eventDragMinDistance?: number
+  eventSourceFailure?: any
+  eventSourceSuccess?: any
+  forceEventDuration?: boolean
+  progressiveEventRendering?: boolean
+  selectLongPressDelay?: number
+  selectMinDistance?: number
+  timeZoneParam?: string
+  titleRangeSeparator?: string
   datesRender?(arg: { view: View, el: HTMLElement }): void
   datesDestroy?(arg: { view: View, el: HTMLElement }): void
-  dayRender?(arg: { view: View, date: Date, allDay: boolean, el: HTMLElement }): void
+  dayRender?(arg: { view: View, date: Date, allDay?: boolean, el: HTMLElement }): void
   windowResize?(view: View): void
-  dateClick?(arg: { date: Date, allDay: boolean, resource: any, el: HTMLElement, jsEvent: MouseEvent, view: View }): void // resource for Scheduler
+  dateClick?(arg: { date: Date, dateStr: string, allDay: boolean, resource?: any, dayEl: HTMLElement, jsEvent: MouseEvent, view: View }): void // resource for Scheduler
   eventClick?(arg: { el: HTMLElement, event: EventApi, jsEvent: MouseEvent, view: View }): boolean | void
   eventMouseEnter?(arg: { el: HTMLElement, event: EventApi, jsEvent: MouseEvent, view: View }): void
   eventMouseLeave?(arg: { el: HTMLElement, event: EventApi, jsEvent: MouseEvent, view: View }): void
-  select?(arg: { start: Date, end: Date, startStr: string, endStr: string, allDay: boolean, resource: any, jsEvent: MouseEvent, view: View }): void // resource for Scheduler
+  select?(arg: { start: Date, end: Date, startStr: string, endStr: string, allDay: boolean, resource?: any, jsEvent: MouseEvent, view: View }): void // resource for Scheduler
   unselect?(arg: { view: View, jsEvent: Event }): void
-  eventDataTransform?: EventInputTransformer
-  loading?(isLoading: boolean, view: View): void
-  eventRender?(arg: { event: EventApi, el: HTMLElement, view: View }): void
-  eventPositioned?(arg: { event: EventApi, el: HTMLElement, view: View }): void
+  loading?(isLoading: boolean): void
+  eventRender?(arg: { isMirror: boolean, isStart: boolean, isEnd: boolean, event: EventApi, el: HTMLElement, view: View }): void
+  eventPositioned?(arg: { isMirror: boolean, isStart: boolean, isEnd: boolean, event: EventApi, el: HTMLElement, view: View }): void
   _eventsPositioned?(arg: { view: View }): void
-  eventDestroy?(arg: { event: EventApi, el: HTMLElement, view: View }): void
+  eventDestroy?(arg: { isMirror: boolean, event: EventApi, el: HTMLElement, view: View }): void
   eventDragStart?(arg: { event: EventApi, el: HTMLElement, jsEvent: MouseEvent, view: View }): void
   eventDragStop?(arg: { event: EventApi, el: HTMLElement, jsEvent: MouseEvent, view: View }): void
-  eventDrop?(arg: { el: HTMLElement, event: EventApi, delta: Duration, revert: () => void, jsEvent: Event, view: View }): void
+  eventDrop?(arg: { el: HTMLElement, event: EventApi, oldEvent: EventApi, delta: Duration, revert: () => void, jsEvent: Event, view: View }): void
   eventResizeStart?(arg: { el: HTMLElement, event: EventApi, jsEvent: MouseEvent, view: View }): void
   eventResizeStop?(arg: { el: HTMLElement, event: EventApi, jsEvent: MouseEvent, view: View }): void
-  eventResize?(arg: { el: HTMLElement, event: EventApi, delta: Duration, revert: () => void, jsEvent: Event, view: View }): void
+  eventResize?(arg: { el: HTMLElement, startDelta: Duration, endDelta: Duration, prevEvent: EventApi, event: EventApi, revert: () => void, jsEvent: Event, view: View }): void
   drop?(arg: { date: Date, dateStr: string, allDay: boolean, draggedEl: HTMLElement, jsEvent: MouseEvent, view: View }): void
   eventReceive?(arg: { event: EventApi, draggedEl: HTMLElement, view: View }): void
   eventLeave?(arg: { draggedEl: HTMLElement, event: EventApi, view: View }): void
+  viewSkeletonRender?(arg: { el: HTMLElement, view: View }): void
+  viewSkeletonDestroy?(arg: { el: HTMLElement, view: View }): void
+  _destroyed?(): void
+  _init?(): void
+  _noEventDrop?(): void
+  _noEventResize?(): void
+  resourceRender?(arg: { resource: any, el: HTMLElement, view: View }): void
 }
 
 export interface ViewOptionsInput extends OptionsInputBase {

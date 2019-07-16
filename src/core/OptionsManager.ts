@@ -1,6 +1,7 @@
 import { firstDefined } from './util/misc'
 import { globalDefaults, rtlDefaults, mergeOptions } from './options'
 import { parseRawLocales, buildLocale } from './datelib/locale'
+import { __assign } from 'tslib'
 
 
 export default class OptionsManager {
@@ -19,8 +20,15 @@ export default class OptionsManager {
   }
 
 
-  add(name, value) {
-    this.dynamicOverrides[name] = value
+  mutate(updates, removals: string[], isDynamic?: boolean) {
+    let overrideHash = isDynamic ? this.dynamicOverrides : this.overrides
+
+    __assign(overrideHash, updates)
+
+    for (let propName of removals) {
+      delete overrideHash[propName]
+    }
+
     this.compute()
   }
 

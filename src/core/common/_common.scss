@@ -33,127 +33,6 @@ body .fc { /* extra precedence to overcome jqui */
 }
 
 
-/* Buttons (styled <button> tags, normalized to work cross-browser)
---------------------------------------------------------------------------------------------------*/
-
-.fc button {
-  /* force height to include the border and padding */
-  -moz-box-sizing: border-box;
-  -webkit-box-sizing: border-box;
-  box-sizing: border-box;
-
-  /* dimensions */
-  margin: 0;
-  height: 2.1em;
-  padding: 0 .6em;
-
-  /* text & cursor */
-  font-size: 1em; /* normalize */
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-/* Firefox has an annoying inner border */
-.fc button::-moz-focus-inner { margin: 0; padding: 0; }
-
-.fc-state-default { /* non-theme */
-  border: 1px solid;
-}
-
-.fc-state-default.fc-corner-left { /* non-theme */
-  border-top-left-radius: 4px;
-  border-bottom-left-radius: 4px;
-}
-
-.fc-state-default.fc-corner-right { /* non-theme */
-  border-top-right-radius: 4px;
-  border-bottom-right-radius: 4px;
-}
-
-/* icons in buttons */
-
-.fc button .fc-icon { /* non-theme */
-  position: relative;
-  top: -0.05em; /* seems to be a good adjustment across browsers */
-  margin: 0 .2em;
-  vertical-align: middle;
-}
-
-/*
-  button states
-  borrowed from twitter bootstrap (http://twitter.github.com/bootstrap/)
-*/
-
-.fc-state-default {
-  background-color: #f5f5f5;
-  background-image: -moz-linear-gradient(top, #ffffff, #e6e6e6);
-  background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#ffffff), to(#e6e6e6));
-  background-image: -webkit-linear-gradient(top, #ffffff, #e6e6e6);
-  background-image: -o-linear-gradient(top, #ffffff, #e6e6e6);
-  background-image: linear-gradient(to bottom, #ffffff, #e6e6e6);
-  background-repeat: repeat-x;
-  border-color: #e6e6e6 #e6e6e6 #bfbfbf;
-  border-color: rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.25);
-  color: #333;
-  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.75);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.fc-state-hover,
-.fc-state-down,
-.fc-state-active,
-.fc-state-disabled {
-  color: #333333;
-  background-color: #e6e6e6;
-}
-
-.fc-state-hover {
-  color: #333333;
-  text-decoration: none;
-  background-position: 0 -15px;
-  -webkit-transition: background-position 0.1s linear;
-     -moz-transition: background-position 0.1s linear;
-       -o-transition: background-position 0.1s linear;
-          transition: background-position 0.1s linear;
-}
-
-.fc-state-down,
-.fc-state-active {
-  background-color: #cccccc;
-  background-image: none;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.fc-state-disabled {
-  cursor: default;
-  background-image: none;
-  opacity: 0.65;
-  box-shadow: none;
-}
-
-
-/* Buttons Groups
---------------------------------------------------------------------------------------------------*/
-
-.fc-button-group {
-  display: inline-block;
-}
-
-/*
-every button that is not first in a button group should scootch over one pixel and cover the
-previous button's border...
-*/
-
-.fc .fc-button-group > * { /* extra precedence b/c buttons have margin set to zero */
-  float: left;
-  margin: 0 0 0 -1px;
-}
-
-.fc .fc-button-group > :first-child { /* same */
-  margin-left: 0;
-}
-
-
 /* Popover
 --------------------------------------------------------------------------------------------------*/
 
@@ -163,7 +42,15 @@ previous button's border...
 }
 
 .fc-popover .fc-header { /* TODO: be more consistent with fc-head/fc-body */
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
   padding: 2px 4px;
+}
+
+.fc-rtl .fc-popover .fc-header {
+  flex-direction: row-reverse;
 }
 
 .fc-popover .fc-header .fc-title {
@@ -172,16 +59,8 @@ previous button's border...
 
 .fc-popover .fc-header .fc-close {
   cursor: pointer;
-}
-
-.fc-ltr .fc-popover .fc-header .fc-title,
-.fc-rtl .fc-popover .fc-header .fc-close {
-  float: left;
-}
-
-.fc-rtl .fc-popover .fc-header .fc-title,
-.fc-ltr .fc-popover .fc-header .fc-close {
-  float: right;
+  opacity: 0.65;
+  font-size: 1.1em;
 }
 
 
@@ -198,10 +77,6 @@ hr.fc-divider {
   margin: 0;
   padding: 0 0 2px; /* height is unreliable across browsers, so use padding */
   border-width: 1px 0;
-}
-
-.fc-clear {
-  clear: both;
 }
 
 .fc-bg,
@@ -385,14 +260,14 @@ temporary rendered events).
   position: relative; /* for resize handle and other inner positioning */
   display: block; /* make the <a> tag block */
   font-size: .85em;
-  line-height: 1.3;
+  line-height: 1.4;
   border-radius: 3px;
-  border: 1px solid #3a87ad; /* default BORDER color */
+  border: 1px solid #3788d8;
 }
 
 .fc-event,
 .fc-event-dot {
-  background-color: #3a87ad; /* default BACKGROUND color */
+  background-color: #3788d8; /* default BACKGROUND color */
 }
 
 .fc-event,
@@ -409,12 +284,6 @@ temporary rendered events).
 .fc-not-allowed, /* causes a "warning" cursor. applied on body */
 .fc-not-allowed .fc-event { /* to override an event's custom cursor */
   cursor: not-allowed;
-}
-
-.fc-event .fc-bg { /* the generic .fc-bg already does position */
-  z-index: 1;
-  background: #fff;
-  opacity: .25;
 }
 
 .fc-event .fc-content {
@@ -463,6 +332,20 @@ temporary rendered events).
 .fc-event.fc-selected {
   z-index: 9999 !important; /* overcomes inline z-index */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.fc-event.fc-selected:after {
+  content: "";
+  position: absolute;
+  z-index: 1; /* same z-index as fc-bg, behind text */
+  /* overcome the borders */
+  top: -1px;
+  right: -1px;
+  bottom: -1px;
+  left: -1px;
+  /* darkening effect */
+  background: #000;
+  opacity: .25;
 }
 
 
@@ -581,20 +464,6 @@ tr:first-child > td > .fc-day-grid-event {
 }
 .fc-mirror-skeleton tr:first-child > td > .fc-day-grid-event {
   margin-top: 0; /* except for mirror skeleton */
-}
-
-.fc-day-grid-event.fc-selected:after {
-  content: "";
-  position: absolute;
-  z-index: 1; /* same z-index as fc-bg, behind text */
-  /* overcome the borders */
-  top: -1px;
-  right: -1px;
-  bottom: -1px;
-  left: -1px;
-  /* darkening effect */
-  background: #000;
-  opacity: .25;
 }
 
 .fc-day-grid-event .fc-content { /* force events to be one-line tall */

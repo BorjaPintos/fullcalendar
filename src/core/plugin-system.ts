@@ -1,7 +1,7 @@
 import { reducerFunc } from './reducers/types'
 import { eventDefParserFunc } from './structs/event'
 import { eventDefMutationApplier } from './structs/event-mutation'
-import Calendar, { DatePointTransform, DateSpanTransform, CalendarInteractionClass } from './Calendar'
+import Calendar, { DatePointTransform, DateSpanTransform, CalendarInteractionClass, OptionChangeHandlerMap } from './Calendar'
 import { ViewConfigInputHash } from './structs/view-config'
 import { ViewSpec } from './structs/view-spec'
 import View, { ViewProps } from './View'
@@ -17,6 +17,7 @@ import { EventSourceDef } from './structs/event-source'
 import { CmdFormatterFunc } from './datelib/formatting-cmd'
 import { RecurringType } from './structs/recurring-event'
 import { NamedTimeZoneImplClass } from './datelib/timezone'
+import { ElementDraggingClass } from './interactions/ElementDragging'
 
 // TODO: easier way to add new hooks? need to update a million things
 
@@ -44,6 +45,8 @@ export interface PluginDefInput {
   recurringTypes?: RecurringType[]
   namedTimeZonedImpl?: NamedTimeZoneImplClass
   defaultView?: string
+  elementDraggingImpl?: ElementDraggingClass
+  optionChangeHandlers?: OptionChangeHandlerMap
 }
 
 export interface PluginHooks {
@@ -69,6 +72,8 @@ export interface PluginHooks {
   recurringTypes: RecurringType[]
   namedTimeZonedImpl?: NamedTimeZoneImplClass
   defaultView: string
+  elementDraggingImpl?: ElementDraggingClass
+  optionChangeHandlers: OptionChangeHandlerMap
 }
 
 export interface PluginDef extends PluginHooks {
@@ -112,7 +117,9 @@ export function createPlugin(input: PluginDefInput): PluginDef {
     cmdFormatter: input.cmdFormatter,
     recurringTypes: input.recurringTypes || [],
     namedTimeZonedImpl: input.namedTimeZonedImpl,
-    defaultView: input.defaultView || ''
+    defaultView: input.defaultView || '',
+    elementDraggingImpl: input.elementDraggingImpl,
+    optionChangeHandlers: input.optionChangeHandlers || {}
   }
 }
 
@@ -144,7 +151,9 @@ export class PluginSystem {
       cmdFormatter: null,
       recurringTypes: [],
       namedTimeZonedImpl: null,
-      defaultView: ''
+      defaultView: '',
+      elementDraggingImpl: null,
+      optionChangeHandlers: {}
     }
     this.addedHash = {}
   }
@@ -186,6 +195,8 @@ function combineHooks(hooks0: PluginHooks, hooks1: PluginHooks): PluginHooks {
     cmdFormatter: hooks1.cmdFormatter || hooks0.cmdFormatter,
     recurringTypes: hooks0.recurringTypes.concat(hooks1.recurringTypes),
     namedTimeZonedImpl: hooks1.namedTimeZonedImpl || hooks0.namedTimeZonedImpl,
-    defaultView: hooks0.defaultView || hooks1.defaultView // put earlier plugins FIRST
+    defaultView: hooks0.defaultView || hooks1.defaultView, // put earlier plugins FIRST
+    elementDraggingImpl: hooks0.elementDraggingImpl || hooks1.elementDraggingImpl, // "
+    optionChangeHandlers: { ...hooks0.optionChangeHandlers, ...hooks1.optionChangeHandlers }
   }
 }

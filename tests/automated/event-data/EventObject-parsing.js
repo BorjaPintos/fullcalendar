@@ -31,8 +31,23 @@ describe('Event Object parsing', function() {
 
     let events = currentCalendar.getEvents()
     expect(events.length).toBe(1)
-    expect(events[0].start).toEqualDate('2017-11-01T00:00:00') // local
+    expect(events[0].start).toEqualLocalDate('2017-11-01T00:00:00')
     expect(events[0].end).toBe(null)
+  })
+
+  xit('won\'t accept two events with the same ID', function() {
+    initCalendar({
+      defaultView: 'dayGridDay',
+      defaultDate: '2018-01-01',
+      events: [
+        { id: '1', start: '2018-01-01', title: 'cool' },
+        { id: '1', start: '2018-01-01' }
+      ]
+    })
+
+    let events = currentCalendar.getEvents()
+    expect(events.length).toBe(1)
+    expect(events[0].title).toBe('cool')
   })
 
 })

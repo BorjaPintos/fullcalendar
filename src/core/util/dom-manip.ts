@@ -147,7 +147,7 @@ export function elementMatches(el: HTMLElement, selector: string): HTMLElement {
 
 // accepts multiple subject els
 // returns a real array. good for methods like forEach
-export function findElements(container: HTMLElement[] | HTMLElement, selector: string): HTMLElement[] {
+export function findElements(container: HTMLElement[] | HTMLElement | NodeListOf<HTMLElement>, selector: string): HTMLElement[] {
   let containers = container instanceof HTMLElement ? [ container ] : container
   let allMatches: HTMLElement[] = []
 
@@ -201,7 +201,7 @@ export function forceClassName(el: HTMLElement, className: string, bool) { // mi
 
 const PIXEL_PROP_RE = /(top|left|right|bottom|width|height)$/i
 
-export function applyStyle(el: HTMLElement, props: object, propVal?: any) {
+export function applyStyle(el: HTMLElement, props: object) {
   for (let propName in props) {
     applyStyleProp(el, propName, props[propName])
   }

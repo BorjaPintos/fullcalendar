@@ -9,14 +9,8 @@ StandardTheme.prototype.classes = {
   widgetContent: 'fc-widget-content',
 
   buttonGroup: 'fc-button-group',
-  button: 'fc-button',
-  cornerLeft: 'fc-corner-left',
-  cornerRight: 'fc-corner-right',
-  stateDefault: 'fc-state-default',
-  stateActive: 'fc-state-active',
-  stateDisabled: 'fc-state-disabled',
-  stateHover: 'fc-state-hover',
-  stateDown: 'fc-state-down',
+  button: 'fc-button fc-button-primary',
+  buttonActive: 'fc-button-active',
 
   popoverHeader: 'fc-widget-header',
   popoverContent: 'fc-widget-content',
@@ -32,10 +26,10 @@ StandardTheme.prototype.classes = {
 StandardTheme.prototype.baseIconClass = 'fc-icon'
 StandardTheme.prototype.iconClasses = {
   close: 'fc-icon-x',
-  prev: 'fc-icon-left-single-arrow',
-  next: 'fc-icon-right-single-arrow',
-  prevYear: 'fc-icon-left-double-arrow',
-  nextYear: 'fc-icon-right-double-arrow'
+  prev: 'fc-icon-chevron-left',
+  next: 'fc-icon-chevron-right',
+  prevYear: 'fc-icon-chevrons-left',
+  nextYear: 'fc-icon-chevrons-right'
 }
 
 StandardTheme.prototype.iconOverrideOption = 'buttonIcons'

@@ -1,4 +1,6 @@
 
+const hasOwnProperty = Object.prototype.hasOwnProperty
+
 // Merges an array of objects into a single object.
 // The second argument allows for an array of property names who's object values will be merged together.
 export function mergeProps(propObjs, complexProps?): any {
@@ -87,17 +89,32 @@ export function arrayToHash(a): { [key: string]: true } {
 }
 
 
-export function isPropsEqual(obj0, obj1): boolean {
+export function hashValuesToArray(obj) {
+  let a = []
+
+  for (let key in obj) {
+    a.push(obj[key])
+  }
+
+  return a
+}
+
+
+export function isPropsEqual(obj0, obj1) {
 
   for (let key in obj0) {
-    if (obj0[key] !== obj1[key]) {
-      return false
+    if (hasOwnProperty.call(obj0, key)) {
+      if (!(key in obj1)) {
+        return false
+      }
     }
   }
 
   for (let key in obj1) {
-    if (!(key in obj0)) {
-      return false
+    if (hasOwnProperty.call(obj1, key)) {
+      if (obj0[key] !== obj1[key]) {
+        return false
+      }
     }
   }
 
